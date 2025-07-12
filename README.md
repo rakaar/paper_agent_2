@@ -12,12 +12,12 @@ paper-explainer/
 │   ├─ frames/             # PNG images of each slide (e.g., deck.001.png, deck.002.png, …)
 │   ├─ audio/              # WAV audio files for each slide's narration (e.g., slide01.wav, slide02.wav, …)
 │   ├─ <original_filename>_slides_plan.json # Structured JSON output from LLM
-│   ├─ <original_filename>_audio_script.txt # Plain text narration script
 │   └─ video.mp4           # Final generated video
 │
 ├─ pdf2json.py             # Helper for interacting with Gemini LLM
 ├─ json2marp.py            # Converts LLM's JSON output to Marp Markdown
 ├─ txt2slides.py           # Main script: orchestrates the entire pipeline
+├─ debug_video.py          # Standalone script to regenerate video from existing frames and audio
 ├─ requirements.txt        # Python dependencies
 ├─ .gitignore              # Specifies files/directories to ignore in Git
 └─ README.md               # This file
@@ -38,6 +38,8 @@ paper-explainer/
     6.  Generates audio narration files (`slides/audio/slideXX.wav`) for each slide using Sarvam AI's Text-to-Speech (TTS) service.
     7.  Renders the Marp Markdown file into individual PNG image frames (`slides/frames/deck.00X.png`) using the `marp-cli` tool.
     8.  Combines the generated PNG frames and audio files into a single MP4 video (`slides/video.mp4`) using `ffmpeg`.
+
+*   **`debug_video.py`**: A standalone utility script for debugging the video creation step. It regenerates the `video.mp4` file from the existing PNG frames in `slides/frames/` and WAV audio files in `slides/audio/`. This is useful for testing changes to the video encoding without re-running the entire LLM and TTS pipeline.
 
 *   **`requirements.txt`**: Lists all Python libraries required for this project. These can be installed using `pip`.
 
@@ -125,7 +127,7 @@ To run the pipeline, execute the `txt2slides.py` script with one or more plain-t
 
 ```bash
 source venv/bin/activate # Activate your virtual environment
-python txt2slides.py paper_structured_page_1.txt paper_structured_page_2.txt
+python3 txt2slides.py paper_structured_page_1.txt paper_structured_page_2.txt
 ```
 
 ### What You Get
@@ -136,7 +138,7 @@ After successful execution, the `slides/` directory will contain:
 *   **`frames/`**: A directory containing PNG images of each slide (e.g., `deck.001.png`, `deck.002.png`).
 *   **`audio/`**: A directory containing WAV audio files for each slide's narration (e.g., `slide01.wav`, `slide02.wav`).
 *   **`<original_filename>_slides_plan.json`**: A JSON file containing the structured data for each slide (title, content, audio script) as returned by the LLM.
-*   **`<original_filename>_audio_script.txt`**: A plain text file containing the concatenated narration script for all slides.
+
 *   **`video.mp4`**: The final MP4 video presentation, combining the slide images and their respective audio narrations.
 
 ## Troubleshooting
@@ -145,6 +147,7 @@ After successful execution, the `slides/` directory will contain:
 *   **`marp` CLI not found**: Ensure Node.js and `marp-cli` are installed globally (`npm i -g @marp-team/marp-cli`).
 *   **`ffmpeg` not found**: Ensure FFmpeg is installed on your system and accessible from your PATH.
 *   **API Key Errors**: Double-check that your `GEMINI_API_KEY` and `SARVAM_API_KEY` environment variables are correctly set.
-*   **Empty `frames/` directory**: If Marp runs but no PNGs are generated, check the console output for any warnings or errors from `marp-cli`. Ensure `--allow-local-files` is used if your Markdown references local images.
+*   **Empty `frames/` directory or Blank Slides**: If Marp runs but no PNGs are generated, or you get an extra blank slide at the beginning or end, there may be an issue with the `deck.md` structure. The `json2marp.py` script is designed to prevent this, but if you modify it, ensure the front-matter (`---`) is correctly formatted and separated from the content.
+*   **FFmpeg errors during video creation**: If you encounter errors related to audio streams or file durations, it may be due to inconsistencies in the WAV files produced by the TTS service. The scripts now include an audio pre-processing step to standardize the audio files before passing them to `ffmpeg`, which should prevent these issues.
 
 Feel free to explore and modify the scripts to suit your specific needs!

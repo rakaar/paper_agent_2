@@ -6,14 +6,12 @@ Usage:  python json2marp.py llm_slides.json  -o slides/deck.md
 import argparse, json, pathlib, textwrap
 from tqdm import tqdm
 
-FRONT_MATTER = textwrap.dedent("""
-    ---
-    marp: true
-    math: mathjax        # guarantee MathJax even if Marp’s default changes
-    paginate: true
-    theme: gaia          # or default / uncover / custom CSS
-    ---
-""")
+FRONT_MATTER = """---
+marp: true
+math: mathjax
+paginate: true
+theme: gaia
+---"""
 
 def main():
     ap = argparse.ArgumentParser()
@@ -22,35 +20,33 @@ def main():
     args = ap.parse_args()
 
     slides = json.loads(args.json_file.read_text())
-    md = [FRONT_MATTER]
+    
+    def get_slide_num(s):
+        return s.get("slide_number") or s.get("slide number")
 
-    # Sort slides, handling missing 'slide number' gracefully
-    sorted_slides = sorted(slides, key=lambda x: x.get("slide number", float('inf')))
+    sorted_slides = sorted(slides, key=lambda x: get_slide_num(x) if get_slide_num(x) is not None else float('inf'))
 
+    slide_markdowns = []
     for s in sorted_slides:
-        slide_num = s.get("slide number", "N/A")
+        slide_num = get_slide_num(s) or "N/A"
         title = s.get("title", f"Untitled Slide {slide_num}")
         content = s.get("content", "No content provided.")
-        audio = s.get("audio", "No audio provided.")
-
-        if "slide number" not in s:
-            print(f"Warning: Slide entry missing 'slide number' key: {s}")
-        if "title" not in s:
-            print(f"Warning: Slide {slide_num} entry missing 'title' key.")
-        if "content" not in s:
-            print(f"Warning: Slide {slide_num} entry missing 'content' key.")
-        if "audio" not in s:
-            print(f"Warning: Slide {slide_num} entry missing 'audio' key.")
 
         if isinstance(content, list):
-            content = "\n".join(content) # Join list elements into a string
+            content = "\n".join(content)
 
-        md.append(f"# {title}\n")
-        md.append(content)      # keep $$…$$ math untouched
-        md.append("\n---\n")
+        slide_md = f"# {title}\n\n{content}"
+        slide_markdowns.append(slide_md)
+
+    # Join the individual slide markdowns with the separator
+    all_slides_md = "\n\n---\n\n".join(slide_markdowns)
+    
+    # Prepend the front matter, separated by a comment, to the combined slides
+    final_md = f"{FRONT_MATTER}\n\n<!-- -->\n\n{all_slides_md}"
+
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text("\n".join(md))
+    args.out.write_text(final_md)
     print("✅ Wrote", args.out)
 
 if __name__ == "__main__":
