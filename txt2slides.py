@@ -161,27 +161,19 @@ def create_video_with_ffmpeg(frames_dir: str, audio_dir: str, output_video_path:
 
     temp_dir = Path(tempfile.mkdtemp(prefix="video_temp_"))
     try:
-        # Marp CLI outputs frames as deck.001, deck.002, etc. (without .png extension in name)
         # Add a small delay to ensure files are written to disk
-        time.sleep(2) # Increased sleep time
-        
-        print(f"  Contents of frames directory ({frames_dir}):")
-        if Path(frames_dir).exists():
-            # Rename files to include .png extension
-            for item in os.listdir(frames_dir):
-                if item.startswith("deck.") and not item.endswith(".png"):
-                    old_path = Path(frames_dir) / item
-                    new_path = Path(frames_dir) / f"{item}.png"
-                    os.rename(old_path, new_path)
-                    print(f"    Renamed {item} to {item}.png")
-                print(f"    - {item}")
-        else:
-            print(f"  Frames directory does not exist: {frames_dir}")
+        time.sleep(1)
 
-        # Adjust glob pattern to match Marp's output naming convention
-        # Marp CLI outputs frames as deck.001, deck.002, etc. (without .png extension in name)
-        # So, we need to glob for all files and assume they are PNGs.
-        png_files = sorted(Path(frames_dir).glob("*.png")) # Glob for all files
+        if not Path(frames_dir).exists():
+            print(f"Error: Frames directory does not exist: {frames_dir}")
+            return
+
+        print(f"  Contents of frames directory ({frames_dir}):")
+        for item in os.listdir(frames_dir):
+            print(f"    - {item}")
+
+        # Glob for PNG files, which marp-cli names `deck.001.png`, `deck.002.png`, etc.
+        png_files = sorted(Path(frames_dir).glob("deck.*.png"))
         audio_files = sorted(Path(audio_dir).glob("*.wav"))
 
         print(f"  PNG files found by glob: {png_files}")
@@ -193,21 +185,37 @@ def create_video_with_ffmpeg(frames_dir: str, audio_dir: str, output_video_path:
             print("Error: No audio files found for video creation.")
             return
 
-        # Step 1: Create individual video clips (image + audio) for each slide
+        # Step 1: Pre-process audio files to a standard format to avoid ffmpeg errors
+        print("  Pre-processing audio files...")
+        standardized_audio_files = []
+        for audio_file in audio_files:
+            standardized_path = temp_dir / f"std_{audio_file.name}"
+            standardize_cmd = [
+                ffmpeg_path,
+                "-i", str(audio_file),
+                "-acodec", "pcm_s16le", # Standard 16-bit PCM
+                "-ar", "44100", # 44.1kHz sample rate
+                "-ac", "2", # Stereo
+                str(standardized_path)
+            ]
+            subprocess.run(standardize_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            standardized_audio_files.append(standardized_path)
+        print("  Audio pre-processing complete.")
+
+        # Step 2: Create individual video clips (image + audio) for each slide
         individual_clips = []
-        for i, audio_file in enumerate(audio_files):
+        for i, audio_file in enumerate(standardized_audio_files):
             slide_num = i + 1
-            # Use the PNG file extracted by PyMuPDF
-            if len(png_files) > i:
-                png_file = png_files[i]
-            else:
+            if len(png_files) <= i:
                 print(f"Warning: Missing PNG for slide {slide_num}. Skipping video creation for this slide.")
                 continue
+            png_file = png_files[i]
             
             clip_output_path = temp_dir / f"clip_{slide_num:02d}.mp4"
             
-            # Get audio duration
-            duration_cmd = [ffmpeg_path, "-i", str(audio_file), "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"]
+            # Get audio duration from the standardized file
+            ffprobe_path = shutil.which("ffprobe") or ffmpeg_path # Use ffprobe if available
+            duration_cmd = [ffprobe_path, "-i", str(audio_file), "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"]
             duration_output = subprocess.check_output(duration_cmd).decode("utf-8").strip()
             duration = float(duration_output)
 
@@ -331,7 +339,9 @@ Do not include any text, prose, or markdown formatting outside of the main JSON 
     json_output_path = slides_dir / f"{base_output_filename}_slides_plan.json"
     marp_md_path = slides_dir / "deck.md"
     audio_output_dir = slides_dir / "audio"
-    frames_output_dir = slides_dir # Marp outputs directly to this directory
+    frames_output_dir = slides_dir / "frames"
+    # Marp CLI needs a dummy file path in the target directory for image sequence output
+    frames_output_path_template = frames_output_dir / "deck.png"
     video_output_path = slides_dir / "video.mp4"
 
     # Save slides data as JSON
@@ -373,7 +383,8 @@ Do not include any text, prose, or markdown formatting outside of the main JSON 
                 "--images", "png",
                 "--image-scale", "2",
                 "--allow-local-files",
-                "-o", str(frames_output_dir)
+                # Provide a dummy file path; marp-cli will use its basename for the sequence
+                "--output", str(frames_output_path_template)
             ],
             check=True
         )
@@ -392,6 +403,10 @@ Do not include any text, prose, or markdown formatting outside of the main JSON 
         print(f"Successfully created video: {video_output_path}")
     except Exception as e:
         print(f"Error building video: {e}")
+        # Also print stdout and stderr for more context on ffmpeg errors
+        if isinstance(e, subprocess.CalledProcessError):
+            print(f"ffmpeg stdout: {e.stdout.decode() if e.stdout else 'N/A'}")
+            print(f"ffmpeg stderr: {e.stderr.decode() if e.stderr else 'N/A'}")
         sys.exit(1)
 
     print("\nAll tasks completed.")

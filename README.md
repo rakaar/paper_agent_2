@@ -1,6 +1,6 @@
 # Paper Explainer
 
-This project automates the process of converting academic papers (or any long-form text) into concise, narrated video presentations. It leverages Large Language Models (LLMs) to summarize content into slide-friendly formats, Text-to-Speech (TTS) for narration, and various tools for generating visual slides and combining them with audio into a video.
+This project automates the process of converting academic papers (PDFs or any long-form text) into concise, narrated video presentations. It leverages Large Language Models (LLMs) to summarize content into slide-friendly formats, Text-to-Speech (TTS) for narration, and various tools for generating visual slides and combining them with audio into a video.
 
 ## Directory Layout
 
