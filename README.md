@@ -2,27 +2,68 @@
 
 This project automates the process of converting academic papers (PDFs or any long-form text) into concise, narrated video presentations. It leverages Large Language Models (LLMs) to summarize content into slide-friendly formats, Text-to-Speech (TTS) for narration, and various tools for generating visual slides and combining them with audio into a video.
 
+# TODO
+1. communication with LLM about figures and location is messed up. Handle that
+ - first see where and how figures are stored
+ - modify prompt to include figures whenever relevant
+
+2. Improve deck creation by more detailed prompt
+
+3. Improve figure cropping 
+
+4. get sub figure cropping
+
 ## Directory Layout
 
 ```
 paper-explainer/
 │
-├─ slides/                 # All auto-generated artifacts land here
+├─ figures/                # Auto-generated figures from the PDF
+│   ├─ figure-1.png        # Example extracted figure
+│   └─ figures_metadata.json # JSON file with figure captions and paths
+│
+├─ slides/                 # All auto-generated presentation artifacts
 │   ├─ deck.md             # Marp Markdown (source of truth for slides)
-│   ├─ frames/             # PNG images of each slide (e.g., deck.001.png, deck.002.png, …)
-│   ├─ audio/              # WAV audio files for each slide's narration (e.g., slide01.wav, slide02.wav, …)
+│   ├─ frames/             # PNG images of each slide (e.g., deck.001.png)
+│   ├─ audio/              # WAV audio files for each slide's narration
 │   ├─ <original_filename>_slides_plan.json # Structured JSON output from LLM
 │   └─ video.mp4           # Final generated video
 │
-├─ pdf2json.py             # Helper for interacting with Gemini LLM
-├─ json2marp.py            # Converts LLM's JSON output to Marp Markdown
-├─ txt2slides.py           # Main script: orchestrates the entire pipeline
-├─ extract_images_llm.py   # Extracts figures from PDFs using a vision-capable LLM
-├─ debug_video.py          # Standalone script to regenerate video from existing frames and audio
-├─ requirements.txt        # Python dependencies
-├─ .gitignore              # Specifies files/directories to ignore in Git
-└─ README.md               # This file
+├─ pdf2json.py             # Helper module for interacting with the Gemini LLM.
+├─ json2marp.py            # Converts the slide plan JSON into Marp Markdown format.
+├─ txt2slides.py           # Main script: orchestrates the entire text-to-video pipeline.
+├─ extract_images_llm.py   # Extracts figures and captions from a PDF using a multimodal LLM.
+└─ requirements.txt        # Python package dependencies.
 ```
+
+## Usage
+
+The process is a two-step pipeline to ensure figures are included correctly.
+
+**Step 1: Extract Figures from the PDF**
+
+This script analyzes the PDF, extracts all figures, and saves them along with a metadata file. This step is optional but required if you want to embed figures from the paper into the video.
+
+```bash
+python3 extract_images_llm.py path/to/your/paper.pdf --output_dir figures
+```
+This command creates a `figures/` directory containing the extracted figure images and a `figures_metadata.json` file.
+
+**Step 2: Generate the Video Presentation**
+
+This is the main script that generates the video. If you completed Step 1, provide the path to the figure metadata to embed the images in your presentation.
+
+*   **To generate a video with figures:**
+    ```bash
+    python3 txt2slides.py path/to/your/paper.pdf --figures-path figures/figures_metadata.json
+    ```
+
+*   **To generate a video without figures:**
+    ```bash
+    python3 txt2slides.py path/to/your/paper.pdf
+    ```
+
+The script will perform all subsequent steps, and the final video will be available at `slides/video.mp4`.
 
 ## Core Components & What They Do
 

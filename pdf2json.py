@@ -27,16 +27,18 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
         raise ValueError("GEMINI_API_KEY environment variable not set.")
     
     genai.configure(api_key=gemini_api_key)
-    model = genai.GenerativeModel('gemini-2.5-pro', system_instruction=system_prompt)
+    # Use JSON mode for robust parsing
+    model = genai.GenerativeModel(
+        'gemini-2.5-pro', 
+        system_instruction=system_prompt,
+        generation_config=genai.types.GenerationConfig(response_mime_type="application/json")
+    )
 
     for attempt in range(2): # One retry
         try:
             response = model.generate_content(user_prompt)
-            llm_response_text = response.text.strip()
-            # Clean up common LLM formatting issues (e.g., ```text ... ```)
-            if llm_response_text.startswith("```") and llm_response_text.endswith("```"):
-                llm_response_text = llm_response_text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-            return llm_response_text
+            # The response.text will be a valid JSON string because of the response_mime_type
+            return response.text
         except Exception as e:
             print(f"  Attempt {attempt + 1} failed: {e}")
             if attempt == 0:

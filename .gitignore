@@ -26,9 +26,12 @@ slides/
 paper_structured.json
 *.pptx
 *.txt
+!full_paper.txt
 *.wav
 *.mp4
 debug_marp_png.py
 *.png
 *.pdf
 *.json
+# !temp_figures_metadata.json
+# !llm_response.json

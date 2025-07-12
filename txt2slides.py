@@ -6,6 +6,8 @@ import shutil
 import tempfile
 from pathlib import Path
 import time
+import argparse
+import re
 
 from pdf2json import call_llm
 
@@ -116,6 +118,23 @@ def save_slides_json(slides_data: list, output_filename: str):
     with open(json_filename, "w", encoding="utf-8") as f:
         json.dump(slides_data, f, indent=2)
     print(f"Successfully saved slides plan JSON: {json_filename}")
+
+
+
+def fix_json_newlines(json_string: str) -> str:
+    """Fixes unescaped newlines inside JSON string values using a robust regex."""
+    
+    def escape_newlines_in_match(match):
+        # The match object gives us the entire string literal, including the quotes.
+        # We replace literal newlines with their escaped version inside this matched string.
+        return match.group(0).replace('\n', '\\n')
+
+    # This regex robustly finds all JSON string literals. It looks for a double quote,
+    # followed by any sequence of characters that are not a backslash or a double quote,
+    # or any escaped character (e.g., \", \\, \n), and ends with a double quote.
+    string_literal_regex = r'"((?:\\.|[^"\\])*)"'
+    
+    return re.sub(string_literal_regex, escape_newlines_in_match, json_string, flags=re.DOTALL)
 
 def generate_audio_files(slides_data: list, output_dir: str):
     """Generates audio files from slide narration using Sarvam TTS."""
@@ -266,19 +285,35 @@ def create_video_with_ffmpeg(frames_dir: str, audio_dir: str, output_video_path:
 
 def main():
     """Main function to drive the script."""
-    if len(sys.argv) < 2:
-        print("Usage: python txt2slides.py <file1.txt> [file2.txt] ...")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Convert text files into a narrated video presentation.")
+    parser.add_argument("input_files", nargs='+', help="One or more input text files.")
+    parser.add_argument("--figures-path", type=str, help="Optional path to a JSON file containing metadata for figures to be included.")
+    
+    args = parser.parse_args()
 
-    input_files = sys.argv[1:]
+    input_files = args.input_files
     
     print(f"Reading and combining text from: {', '.join(input_files)}")
     
     combined_text = []
     for file_path in input_files:
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                combined_text.append(f.read())
+            if file_path.lower().endswith('.pdf'):
+                try:
+                    import fitz # PyMuPDF
+                except ImportError:
+                    print("Error: The 'PyMuPDF' library is required to process PDF files. Please install it by running:")
+                    print("pip install PyMuPDF")
+                    sys.exit(1)
+                
+                print(f"Extracting text from PDF: {file_path}")
+                doc = fitz.open(file_path)
+                text = "".join(page.get_text() for page in doc)
+                combined_text.append(text)
+                doc.close()
+            else: # Assume .txt or other text format
+                with open(file_path, "r", encoding="utf-8") as f:
+                    combined_text.append(f.read())
         except FileNotFoundError:
             print(f"Error: File not found at '{file_path}'. Skipping.")
             continue
@@ -289,13 +324,50 @@ def main():
 
     full_text = "\n\n---\n\n".join(combined_text)
 
+    # --- Handle Figures --- #
+    figures_prompt_injection = ""
+    if args.figures_path:
+        print(f"Loading figures metadata from: {args.figures_path}")
+        try:
+            with open(args.figures_path, 'r', encoding='utf-8') as f:
+                figures_data = json.load(f)
+            
+            figures_list_str = ""
+            for i, fig in enumerate(figures_data):
+                title = fig.get('title', f'Figure {i+1}')
+                caption = fig.get('caption', 'No caption available.')
+                # The markdown_path will be created by the orchestrator script
+                path = fig.get('markdown_path', '') 
+                figures_list_str += f"- Figure {i+1}:\n  - Title: {title}\n  - Caption: {caption}\n  - Markdown Path: {path}\n"
+
+            if figures_list_str:
+                figures_prompt_injection = f"""\n\n--- AVAILABLE FIGURES ---
+You have been provided with a list of figures. Where relevant, you MUST embed these figures into the slide content using their provided Markdown paths (e.g., `![{title}]({path})`).
+
+{figures_list_str}
+"""
+        except FileNotFoundError:
+            print(f"Warning: Figures metadata file not found at '{args.figures_path}'. Continuing without figures.")
+        except json.JSONDecodeError:
+            print(f"Warning: Could not decode JSON from '{args.figures_path}'. Continuing without figures.")
+    # --- End Handle Figures --- #
+
     # Calculate max_slides based on the number of input files
     max_slides = len(input_files) * 2 
 
-    system_prompt = "You are an expert instructional designer. Your task is to convert the provided text into a slide deck for a presentation. You must respond with only a valid JSON array of slide objects, with no other text or explanation."
+    system_prompt = """You are a helpful assistant that creates a slide deck presentation from a given text. 
+Your task is to create a JSON object that represents the slide deck. The JSON object should be a list of slides. 
+Each slide should have a "slide number", a "title", a "content" field, and an "audio" field. 
+The "content" field should contain the text for the slide body as a single string, formatted in Markdown. 
+The "audio" field should contain the narration script for the slide. The narration should be engaging and conversational. 
+
+IMPORTANT: The output MUST be a single, valid JSON object. Ensure that all strings are properly escaped. For example, use \n for newlines within the content and audio strings, and escape any double quotes. Do not add any extra text or formatting outside of the JSON object itself. The entire response should be parseable by a standard JSON parser."""
     
-    user_prompt = f"""
-Please break the following text into exactly {max_slides} slides. Each slide must be a JSON object with these exact keys: "slide number", "title", "content", and "audio".
+    # The user_prompt must be defined *after* figures_prompt_injection is created.
+    user_prompt = f"""**IMPORTANT:** First, review the list of available figures. You MUST embed these figures in the 'content' of relevant slides.
+{figures_prompt_injection}
+
+Now, please break the following text into exactly {max_slides} slides. Each slide must be a JSON object with these exact keys: "slide number", "title", "content", and "audio".
 - "slide number": An integer for the slide order.
 - "title": A concise title for the slide.
 - "content": Keep this very minimal, using only a few bullet points or a very short paragraph. This is for visual cues only.
@@ -305,26 +377,25 @@ Do not include any text, prose, or markdown formatting outside of the main JSON 
 
 --- TEXT TO CONVERT ---
 {full_text}
-"""
+
+--- END OF TEXT ---
+Remember to include the figures in your response where appropriate."""
 
     print("Sending content to the language model for processing...")
     try:
         llm_response_str = call_llm(system_prompt, user_prompt)
         
-        # Clean the response to ensure it's just the JSON array
-        # The model sometimes wraps the JSON in ```json ... ```
-        if llm_response_str.strip().startswith("```json"):
-            llm_response_str = llm_response_str.strip()[7:-3].strip()
-
-        slides_data = json.loads(llm_response_str)
-        print(f"LLM returned slides_data: {json.dumps(slides_data, indent=2)}") # Debug print
-
-    except json.JSONDecodeError:
-        print("\n--- ERROR: Failed to decode JSON from LLM response. ---")
-        print("The model did not return a valid JSON string.")
-        print("Raw response received:\n")
-        print(llm_response_str)
-        sys.exit(1)
+        # Parse the JSON response, fixing any unescaped newlines first
+        try:
+            fixed_llm_response = fix_json_newlines(llm_response_str)
+            slides_data = json.loads(fixed_llm_response)
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON even after fixing newlines: {e}")
+            # Save the problematic response for inspection
+            with open("llm_response_error.json", "w") as f:
+                f.write(llm_response_str)
+            print("Problematic response saved to llm_response_error.json")
+            return
     except Exception as e:
         print(f"An unexpected error occurred during LLM call or processing: {e}")
         sys.exit(1)
