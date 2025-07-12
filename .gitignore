@@ -31,3 +31,4 @@ paper_structured.json
 debug_marp_png.py
 *.png
 *.pdf
+*.json
