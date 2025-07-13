@@ -9,6 +9,31 @@ import time
 import argparse
 import re
 
+# --- Whitespace Compaction Helper ---
+# Keeps single newlines for readability but removes excess internal spaces
+# and consecutive blank lines. Also replaces common Unicode space chars.
+UNICODE_SPACES = ["\u00A0", "\u2002", "\u2003", "\u2009"]
+
+def compact_whitespace(text: str) -> str:
+    """Return `text` with internal whitespace collapsed to save LLM tokens."""
+    lines = []
+    prev_blank = False
+    for raw in text.splitlines():
+        # Replace special unicode spaces
+        for u in UNICODE_SPACES:
+            raw = raw.replace(u, " ")
+        stripped = raw.strip()
+        # Collapse internal whitespace (incl. tabs) to single space
+        stripped = re.sub(r"\s+", " ", stripped)
+        if stripped == "":
+            if not prev_blank:
+                lines.append("")  # keep a single blank line
+            prev_blank = True
+        else:
+            lines.append(stripped)
+            prev_blank = False
+    return "\n".join(lines).strip()
+
 from pdf2json import call_llm
 
 # Try to import pptx and provide a helpful error message if it's not installed.
@@ -392,6 +417,10 @@ Do not include any text, prose, or markdown formatting outside of the main JSON 
 Remember to include the figures in your response where appropriate."""
 
     # For transparency, print the full user prompt being sent (can be verbose)
+    # Compact whitespace in prompts to save tokens
+    compacted_system_prompt = compact_whitespace(system_prompt)
+    compacted_user_prompt = compact_whitespace(user_prompt)
+
     print("\n--- LLM USER PROMPT (truncated to 1500 chars) ---")
     print(user_prompt[:1500] + ("..." if len(user_prompt) > 1500 else ""))
     print("--- END PROMPT ---\n")
@@ -401,16 +430,20 @@ Remember to include the figures in your response where appropriate."""
     try:
         debug_prompt_path.parent.mkdir(parents=True, exist_ok=True)
         with open(debug_prompt_path, "w", encoding="utf-8") as f:
-            f.write("=== SYSTEM PROMPT ===\n")
+            f.write("=== SYSTEM PROMPT (raw) ===\n")
             f.write(system_prompt + "\n\n")
-            f.write("=== USER PROMPT ===\n")
-            f.write(user_prompt)
+            f.write("=== USER PROMPT (raw) ===\n")
+            f.write(user_prompt + "\n\n")
+            f.write("=== SYSTEM PROMPT (compacted) ===\n")
+            f.write(compacted_system_prompt + "\n\n")
+            f.write("=== USER PROMPT (compacted) ===\n")
+            f.write(compacted_user_prompt)
         print(f"Full LLM prompt written to {debug_prompt_path}")
     except Exception as e:
         print(f"Warning: could not write debug prompt file: {e}")
     print("Sending content to the language model for processing...")
     try:
-        llm_response_str = call_llm(system_prompt, user_prompt)
+        llm_response_str = call_llm(compacted_system_prompt, compacted_user_prompt)
         
         # Parse the JSON response, fixing any unescaped newlines first
         try:

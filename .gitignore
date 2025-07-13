@@ -23,8 +23,6 @@ Thumbs.db
 
 # Generated files from this project
 slides/
-# LLM prompt snapshot
-full_llm_prompt.txt
 paper_structured.json
 *.pptx
 *.txt
