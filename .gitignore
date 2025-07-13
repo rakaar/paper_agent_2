@@ -23,6 +23,8 @@ Thumbs.db
 
 # Generated files from this project
 slides/
+# LLM prompt snapshot
+full_llm_prompt.txt
 paper_structured.json
 *.pptx
 *.txt
@@ -33,5 +35,6 @@ debug_marp_png.py
 *.png
 *.pdf
 *.json
+!requirements*.json
 # !temp_figures_metadata.json
 # !llm_response.json

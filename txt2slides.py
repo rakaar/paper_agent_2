@@ -289,6 +289,7 @@ def main():
     parser.add_argument("input_files", nargs='+', help="One or more input text files.")
     parser.add_argument("--figures-path", type=str, help="Optional path to a JSON file containing metadata for figures to be included.")
     parser.add_argument("--max-slides", type=int, help="Desired maximum number of slides (overrides heuristic).")
+    parser.add_argument("--slides-only", action="store_true", help="Only generate slides JSON & Markdown; skip audio and video steps.")
     
     args = parser.parse_args()
 
@@ -377,7 +378,9 @@ IMPORTANT: The output MUST be a single, valid JSON object. Ensure that all strin
 Now, please break the following text into exactly {max_slides} slides. Each slide must be a JSON object with these exact keys: "slide number", "title", "content", and "audio".
 - "slide number": An integer for the slide order.
 - "title": A concise title for the slide.
-- "content": Keep this very minimal, using only a few bullet points or a very short paragraph. This is for visual cues only.
+- "content": Keep this extremely minimal:
+        * If the slide EMBEDS A FIGURE, use **max 2 short bullet points or <=120 characters**.
+        * Otherwise 3-4 bullets or brief paragraph. This is for on-screen text only.
 - "audio": This should contain the full, detailed narration for the slide, suitable for text-to-speech. Maximize information transfer here.
 
 Do not include any text, prose, or markdown formatting outside of the main JSON array.
@@ -467,8 +470,9 @@ Remember to include the figures in your response where appropriate."""
         print(f"Stderr: {e.stderr.decode()}")
         sys.exit(1)
 
-    # Generate audio files
-    generate_audio_files(slides_data, str(audio_output_dir)) 
+    # Generate audio files (skip in slides-only mode)
+    if not args.slides_only:
+        generate_audio_files(slides_data, str(audio_output_dir)) 
 
     # Render Marp Markdown to PNG frames
     print("Rendering Marp Markdown to PNG frames...")
@@ -494,15 +498,17 @@ Remember to include the figures in your response where appropriate."""
         print(f"Stderr: {e.stderr.decode()}")
         sys.exit(1)
 
+    if args.slides_only:
+        print("Slides-only mode: frames rendered. Skipping audio/video generation.")
+        return
+
     # Build video from PNG frames and audio
     print("Building video from PNG frames and audio...")
     try:
-        # Call create_video_with_ffmpeg directly
         create_video_with_ffmpeg(str(frames_output_dir), str(audio_output_dir), str(video_output_path))
         print(f"Successfully created video: {video_output_path}")
     except Exception as e:
         print(f"Error building video: {e}")
-        # Also print stdout and stderr for more context on ffmpeg errors
         if isinstance(e, subprocess.CalledProcessError):
             print(f"ffmpeg stdout: {e.stdout.decode() if e.stdout else 'N/A'}")
             print(f"ffmpeg stderr: {e.stderr.decode() if e.stderr else 'N/A'}")

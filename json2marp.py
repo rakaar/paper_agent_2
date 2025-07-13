@@ -11,6 +11,36 @@ marp: true
 math: mathjax
 paginate: true
 theme: gaia
+style: |
+  /* Global slide tweaks */
+  section {
+    padding-top: 0.2em;
+  }
+  section h1 {
+    font-size: 1.6em;
+    line-height: 1.2;
+  }
+  /* Ensure images fit within slide without being cut */
+  section img {
+    max-height: 45vh;
+    max-width: 80%;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    margin: 1em auto;
+  }
+
+  /* When slide has an image, shrink heading and body font */
+  section.has-image h1 {
+    font-size: 1.2em;
+  }
+  section.has-image h2 {
+    font-size: 1.2em;
+  }
+  section.has-image ul,
+  section.has-image p {
+    font-size: 0.8em;
+  }
 ---"""
 
 def main():

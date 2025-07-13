@@ -207,6 +207,21 @@ After successful execution, the `slides/` directory will contain:
 
 *   **`video.mp4`**: The final MP4 video presentation, combining the slide images and their respective audio narrations.
 
+## Command-line Flags
+
+* `--max-slides N` – force the LLM to generate exactly N slides, overriding the automatic heuristic.
+* `--slides-only` – skip audio narration and video assembly; still renders PNG frames for a fast visual check.
+
+Example rapid-iteration run:
+
+```bash
+python3 txt2slides.py path/to/paper.pdf \
+    --figures-path extracted_figures_llm/figures_metadata.json \
+    --max-slides 12 --slides-only
+```
+
+---
+
 ## Troubleshooting
 
 *   **`ModuleNotFoundError`**: Ensure your virtual environment is activated and all dependencies are installed (`pip install -r requirements.txt`).
