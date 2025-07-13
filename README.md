@@ -11,11 +11,19 @@ This project automates the process of converting academic papers (PDFs or any lo
 
 3. ~~Improve deck creation by more detailed prompt~~
 
-4. UI for easy testing?
+4. UI for easy testing - feedback on site is not good.
 
-4. Improve figure cropping 
+5. tests to test without UI
 
-5. get sub figure cropping
+6. merge in the main branch
+
+7. Improve figure cropping 
+
+8. get sub figure cropping
+
+9. more customization on methods?
+
+10. ollama gemma-3n on server
 
 ## Directory Layout
 
