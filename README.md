@@ -7,7 +7,7 @@ This project automates the process of converting academic papers (PDFs or any lo
  - ~~first see where and how figures are stored~~
  - ~~modify prompt to include figures whenever relevant~~
 
-2. Format text to LLM for creating slides.
+2. ~~Format text to LLM for creating slides.~~
 
 2. Improve deck creation by more detailed prompt
 
