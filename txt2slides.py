@@ -288,6 +288,7 @@ def main():
     parser = argparse.ArgumentParser(description="Convert text files into a narrated video presentation.")
     parser.add_argument("input_files", nargs='+', help="One or more input text files.")
     parser.add_argument("--figures-path", type=str, help="Optional path to a JSON file containing metadata for figures to be included.")
+    parser.add_argument("--max-slides", type=int, help="Desired maximum number of slides (overrides heuristic).")
     
     args = parser.parse_args()
 
@@ -337,7 +338,9 @@ def main():
                 title = fig.get('title', f'Figure {i+1}')
                 caption = fig.get('caption', 'No caption available.')
                 # The markdown_path will be created by the orchestrator script
-                path = fig.get('markdown_path', '') 
+                raw_path = fig.get('markdown_path', '')
+                # Make the path relative to the location of deck.md (slides/)
+                path = os.path.relpath(raw_path, start="slides") if raw_path else ''
                 figures_list_str += f"- Figure {i+1}:\n  - Title: {title}\n  - Caption: {caption}\n  - Markdown Path: {path}\n"
 
             if figures_list_str:
@@ -353,7 +356,11 @@ You have been provided with a list of figures. Where relevant, you MUST embed th
     # --- End Handle Figures --- #
 
     # Calculate max_slides based on the number of input files
-    max_slides = len(input_files) * 2 
+    if args.max_slides and args.max_slides > 0:
+        max_slides = args.max_slides
+    else:
+        # Heuristic: roughly 1 slide per 1500 chars, capped 15
+        max_slides = min(15, max(4, len(full_text)//1500))
 
     system_prompt = """You are a helpful assistant that creates a slide deck presentation from a given text. 
 Your task is to create a JSON object that represents the slide deck. The JSON object should be a list of slides. 
@@ -381,6 +388,23 @@ Do not include any text, prose, or markdown formatting outside of the main JSON 
 --- END OF TEXT ---
 Remember to include the figures in your response where appropriate."""
 
+    # For transparency, print the full user prompt being sent (can be verbose)
+    print("\n--- LLM USER PROMPT (truncated to 1500 chars) ---")
+    print(user_prompt[:1500] + ("..." if len(user_prompt) > 1500 else ""))
+    print("--- END PROMPT ---\n")
+
+    # Save full prompts to a file for user inspection
+    debug_prompt_path = Path("slides/full_llm_prompt.txt")
+    try:
+        debug_prompt_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(debug_prompt_path, "w", encoding="utf-8") as f:
+            f.write("=== SYSTEM PROMPT ===\n")
+            f.write(system_prompt + "\n\n")
+            f.write("=== USER PROMPT ===\n")
+            f.write(user_prompt)
+        print(f"Full LLM prompt written to {debug_prompt_path}")
+    except Exception as e:
+        print(f"Warning: could not write debug prompt file: {e}")
     print("Sending content to the language model for processing...")
     try:
         llm_response_str = call_llm(system_prompt, user_prompt)
@@ -403,7 +427,8 @@ Remember to include the figures in your response where appropriate."""
     print("LLM response received and parsed successfully.")
     
     # Define output directories and filenames
-    base_output_filename, _ = os.path.splitext(input_files[0])
+    # Use only the stem (filename without directories) to avoid nested dirs inside slides/
+    base_output_filename = Path(input_files[0]).stem
     slides_dir = Path("slides")
     slides_dir.mkdir(parents=True, exist_ok=True)
 
@@ -414,6 +439,9 @@ Remember to include the figures in your response where appropriate."""
     # Marp CLI needs a dummy file path in the target directory for image sequence output
     frames_output_path_template = frames_output_dir / "deck.png"
     video_output_path = slides_dir / "video.mp4"
+
+    # Ensure output subdir exists (might just be slides/)
+    json_output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Save slides data as JSON
     with open(json_output_path, "w", encoding="utf-8") as f:
