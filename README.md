@@ -234,6 +234,69 @@ python3 txt2slides.py path/to/paper.pdf \
 
 ---
 
+## UI Components
+
+The project includes a Streamlit web interface for interactive usage and step-by-step visualization of the pipeline. The UI components are organized as follows:
+
+### Main App File
+
+* **`streamlit_app.py`**: Main Streamlit app providing a web interface for the paper-to-video pipeline. Offers file upload, processing status tracking, and downloadable outputs.
+* **`streamlit_app_fixed.py`**: Enhanced version with improved logging and error handling.
+
+### Processor Modules
+
+The `processors/` directory contains modular components for each step of the pipeline:
+
+* **`text_extractor.py`**: Extracts text from PDF documents using PyMuPDF.
+* **`figure_extractor.py`**: Handles figure extraction by calling the existing `extract_images_llm.py` script.
+* **`llm_processor.py`**: Generates slide content by interfacing with Gemini LLM.
+* **`marp_converter.py`**: Converts JSON slide content to Marp Markdown using `json2marp.py`.
+* **`audio_generator.py`**: Creates audio narration using Sarvam AI TTS API.
+* **`slide_renderer.py`**: Renders Marp markdown as PNG images using marp-cli.
+* **`video_creator.py`**: Assembles the final video using ffmpeg to combine slide images with audio.
+
+### UI Utility Modules
+
+The `utils/` directory contains helper modules for the UI:
+
+* **`ui_components.py`**: UI components such as step headers, status indicators, and preview displays.
+* **`file_helpers.py`**: Utilities for file handling, uploads, and temporary storage.
+
+### Running the UI
+
+To run the Streamlit UI:
+
+```bash
+# Activate your virtual environment
+source venv/bin/activate
+
+# Set required API keys
+export GEMINI_API_KEY="your-gemini-api-key"
+export SARVAM_API_KEY="your-sarvam-api-key"
+
+# Launch the Streamlit app
+python -m streamlit run streamlit_app_fixed.py
+```
+
+The UI provides:
+- PDF upload interface
+- API key configuration
+- Process settings (max slides, slides-only mode)
+- Real-time processing status with visual indicators
+- Preview tabs for figures, slides, audio, and video
+- Download options for all generated assets
+- Debug logging view
+
+## Dependencies
+
+This project requires:
+
+*   **Python 3.9+**: For all core functionality.
+*   **Marp CLI**: For converting markdown into slide deck PNG frames. Install with `npm i -g @marp-team/marp-cli`.
+*   **FFmpeg**: For creating the final video with audio. Install via your system's package manager (e.g., `apt install ffmpeg` on Ubuntu).
+*   **Pip packages**: Install with `pip install -r requirements.txt` (after creating and activating a virtual environment).
+*   **Streamlit**: For the web UI, included in requirements.txt.
+
 ## Troubleshooting
 
 *   **`ModuleNotFoundError`**: Ensure your virtual environment is activated and all dependencies are installed (`pip install -r requirements.txt`).
