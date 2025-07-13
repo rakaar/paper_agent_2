@@ -164,6 +164,7 @@ def extract_figures_from_llm_data(pdf_path: str, llm_data: dict, output_dir: str
     """Crops figures and saves their metadata as JSON files."""
     print("\nCropping figures and generating metadata based on LLM data...")
     extracted_files = []
+    metadata_list = []  # collect per-figure metadata to write once at the end
     figure_counter = 1
     try:
         doc = fitz.open(pdf_path)
@@ -201,10 +202,34 @@ def extract_figures_from_llm_data(pdf_path: str, llm_data: dict, output_dir: str
                 json_output_path = Path(output_dir) / json_filename
                 with open(json_output_path, 'w', encoding='utf-8') as f:
                     json.dump(metadata, f, indent=4)
+                # Add metadata to master list
+                metadata_list.append({
+                    "title": metadata["title"],
+                    "caption": metadata["caption"],
+                    # Path relative to project root so Marp can load it directly
+                    "markdown_path": str(output_path)
+                })
 
                 figure_counter += 1
         doc.close()
-        print(f"Successfully cropped and saved {len(extracted_files)} figures and their metadata.")
+
+        # --- Write combined metadata file ---
+        combined_meta_path = Path(output_dir) / "figures_metadata.json"
+        try:
+            with open(combined_meta_path, "w", encoding="utf-8") as f:
+                json.dump(metadata_list, f, indent=2)
+            print(f"Wrote combined metadata: {combined_meta_path}")
+        except Exception as e:
+            print(f"Error writing combined metadata file: {e}")
+
+        # --- Remove individual JSON files now that they are consolidated ---
+        for json_file in Path(output_dir).glob("figure-*.json"):
+            try:
+                json_file.unlink()
+            except Exception as e:
+                print(f"Could not delete {json_file}: {e}")
+
+        print(f"Successfully cropped and saved {len(extracted_files)} figures and consolidated metadata.")
         return extracted_files
     except Exception as e:
         print(f"Error during figure cropping or metadata generation: {e}")
