@@ -9,11 +9,13 @@ This project automates the process of converting academic papers (PDFs or any lo
 
 2. ~~Format text to LLM for creating slides.~~
 
-2. Improve deck creation by more detailed prompt
+3. ~~Improve deck creation by more detailed prompt~~
 
-3. Improve figure cropping 
+4. UI for easy testing?
 
-4. get sub figure cropping
+4. Improve figure cropping 
+
+5. get sub figure cropping
 
 ## Directory Layout
 
