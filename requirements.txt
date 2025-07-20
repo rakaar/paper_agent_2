@@ -1,0 +1,10 @@
+google-generativeai
+PyMuPDF
+pydantic
+Pillow
+python-pptx
+sarvamai
+moviepy
+tqdm
+pyyaml
+streamlit>=1.47.0

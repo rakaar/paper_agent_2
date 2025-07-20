@@ -4,6 +4,47 @@ from pathlib import Path
 from sarvamai import SarvamAI
 from sarvamai.play import save as sarvam_save
 
+def generate_single_audio(text, output_path):
+    """
+    Generate a single audio file from text using Sarvam AI TTS
+    
+    Args:
+        text (str): Text to convert to speech
+        output_path (str): Path where the audio file should be saved
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Verify that the SARVAM_API_KEY is set
+        SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
+        if not SARVAM_API_KEY:
+            print("Warning: SARVAM_API_KEY environment variable not set")
+            return False
+        
+        if not text.strip():
+            print("Warning: No text provided for audio generation")
+            return False
+        
+        # Initialize Sarvam AI client
+        client = SarvamAI(api_subscription_key=SARVAM_API_KEY)
+        
+        # Generate audio
+        audio = client.text_to_speech.convert(
+            text=text,
+            target_language_code="en-IN",
+            model="bulbul:v2",
+            speaker="anushka"
+        )
+        
+        # Save the audio file
+        sarvam_save(audio, output_path)
+        return True
+        
+    except Exception as e:
+        print(f"Error generating audio: {str(e)}")
+        return False
+
 def generate_audio(slides_json_path):
     """
     Generate audio files for each slide using Sarvam AI TTS

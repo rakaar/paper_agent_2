@@ -6,21 +6,31 @@ import time
 import tempfile
 from pathlib import Path
 
-def create_video(frames_dir, audio_dir):
+def create_video(frames_dir, audio_dir, output_path=None, progress_callback=None):
     """
     Create a video from PNG frames and audio files using ffmpeg
     
     Args:
         frames_dir (str): Path to directory containing PNG frames
         audio_dir (str): Path to directory containing audio files
+        progress_callback (callable, optional): Function to call for progress updates
         
     Returns:
-        str: Path to the generated video file
+        str: Path to the generated video file, or None if failed
     """
-    # Define output video path
-    output_dir = Path("slides")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_video_path = output_dir / "video.mp4"
+    def update_progress(message, current=None, total=None):
+        if progress_callback:
+            progress_callback(message, current, total)
+        else:
+            print(message)
+    # Determine output video path
+    if output_path is None:
+        output_dir = Path("slides")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_video_path = output_dir / "video.mp4"
+    else:
+        output_video_path = Path(output_path)
+        output_video_path.parent.mkdir(parents=True, exist_ok=True)
     
     # Check for ffmpeg
     ffmpeg_path = shutil.which("ffmpeg")
@@ -48,9 +58,10 @@ def create_video(frames_dir, audio_dir):
             raise FileNotFoundError(f"No audio files found in audio directory: {audio_dir}")
 
         # Step 1: Pre-process audio files to a standard format to avoid ffmpeg errors
-        print("  Pre-processing audio files...")
+        update_progress("Pre-processing audio files...")
         standardized_audio_files = []
-        for audio_file in audio_files:
+        for i, audio_file in enumerate(audio_files):
+            update_progress(f"Processing audio file {i+1}/{len(audio_files)}", i, len(audio_files))
             standardized_path = temp_dir / f"std_{audio_file.name}"
             standardize_cmd = [
                 ffmpeg_path,
@@ -62,14 +73,17 @@ def create_video(frames_dir, audio_dir):
             ]
             subprocess.run(standardize_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             standardized_audio_files.append(standardized_path)
-        print("  Audio pre-processing complete.")
+        update_progress("Audio pre-processing complete")
 
         # Step 2: Create individual video clips (image + audio) for each slide
+        update_progress("Creating individual video clips...")
         individual_clips = []
         for i, audio_file in enumerate(standardized_audio_files):
             slide_num = i + 1
+            update_progress(f"Creating clip {slide_num}/{len(standardized_audio_files)}", i, len(standardized_audio_files))
+            
             if len(png_files) <= i:
-                print(f"Warning: Missing PNG for slide {slide_num}. Skipping video creation for this slide.")
+                update_progress(f"Warning: Missing PNG for slide {slide_num}. Skipping.")
                 continue
             png_file = png_files[i]
             
@@ -100,10 +114,11 @@ def create_video(frames_dir, audio_dir):
             individual_clips.append(clip_output_path)
         
         if not individual_clips:
-            raise RuntimeError("No individual video clips were created.")
+            update_progress("Error: No individual video clips were created")
+            return None
 
         # Step 3: Concatenate individual video clips
-        print("  Concatenating individual video clips...")
+        update_progress("Concatenating individual video clips...")
         concat_file_list_path = temp_dir / "concat_clips.txt"
         with open(concat_file_list_path, "w", encoding="utf-8") as f:
             for clip_path in individual_clips:
@@ -119,9 +134,11 @@ def create_video(frames_dir, audio_dir):
         ]
         subprocess.run(final_concat_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
+        update_progress(f"Video creation completed: {output_video_path}")
         return str(output_video_path)
 
     except Exception as e:
-        raise Exception(f"Error creating video: {str(e)}")
+        update_progress(f"Error creating video: {str(e)}")
+        return None
     finally:
         shutil.rmtree(temp_dir)

@@ -386,7 +386,7 @@ You have been provided with a list of figures. Where relevant, you MUST embed th
         max_slides = args.max_slides
     else:
         # Heuristic: roughly 1 slide per 1500 chars, capped 15
-        max_slides = min(15, max(4, len(full_text)//1500))
+        max_slides = min(15, max(2, len(full_text)//1500))
 
     system_prompt = """You are an AI assistant role-playing as a graduate student in a lab meeting, explaining an interesting paper to your peers.
 Your tone should be conversational, insightful, and slightly informal. Refer to the paper's authors as 'the authors' or 'the paper,' not 'we'.

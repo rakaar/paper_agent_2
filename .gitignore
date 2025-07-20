@@ -34,5 +34,7 @@ debug_marp_png.py
 *.pdf
 *.json
 !requirements*.json
+!requirements.txt
+
 # !temp_figures_metadata.json
 # !llm_response.json

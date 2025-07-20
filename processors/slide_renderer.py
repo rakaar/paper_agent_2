@@ -3,7 +3,7 @@ import sys
 import subprocess
 from pathlib import Path
 
-def render_slides(marp_md_path):
+def render_slides(marp_md_path, frames_dir=None):
     """
     Render Marp markdown as PNG images using marp-cli
     
@@ -13,10 +13,13 @@ def render_slides(marp_md_path):
     Returns:
         str: Path to the directory containing rendered PNG frames
     """
-    # Create output directory for frames
-    frames_dir = Path("slides") / "frames"
+    # Determine output directory for frames
+    if frames_dir is None:
+        frames_dir = Path("slides") / "frames"
+    else:
+        frames_dir = Path(frames_dir)
     frames_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Marp CLI needs a dummy file path in the target directory for image sequence output
     frames_output_path_template = frames_dir / "deck.png"
     
