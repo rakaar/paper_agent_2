@@ -23,7 +23,7 @@ Key capabilities (2025-07):
 
 3. ~~Improve deck creation by more detailed prompt~~
 
-4. UI for easy testing - feedback on site is not good.
+4. issue in making slides now.
 
 5. tests to test without UI
 

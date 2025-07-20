@@ -4,13 +4,14 @@ import subprocess
 import json
 from pathlib import Path
 
-def convert_to_marp(json_file_path):
+def convert_to_marp(json_file_path, figures_metadata_path=None):
     """
     Convert slide plan JSON to Marp markdown using the existing json2marp.py script
     
     Args:
         json_file_path (str): Path to the slides plan JSON file
-        
+        figures_metadata_path (str, optional): Path to figures metadata. Defaults to None.
+
     Returns:
         str: Path to the generated Marp markdown file
     """
@@ -27,9 +28,12 @@ def convert_to_marp(json_file_path):
             str(json_file_path),
             "--out", str(marp_md_path)
         ]
+
+        if figures_metadata_path:
+            cmd.extend(["--figures-path", str(figures_metadata_path)])
         
         # Execute the command
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
         
         # Verify that the markdown file was created
         if not os.path.exists(marp_md_path):
