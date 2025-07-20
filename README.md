@@ -1,8 +1,20 @@
 # Paper Explainer
 
-This project automates the process of converting academic papers (PDFs or any long-form text) into concise, narrated video presentations. It leverages Large Language Models (LLMs) to summarize content into slide-friendly formats, Text-to-Speech (TTS) for narration, and various tools for generating visual slides and combining them with audio into a video.
+Convert any academic paper into a short, narrated slide-deck video – end-to-end, in one click.
 
-# TODO
+Key capabilities (2025-07):
+* 📑 PDF text extraction
+* 🖼️ Figure detection & cropping (vision LLM)
+* ✨ Gemini-pro slide synthesis with Markdown + narration script
+* 🔊 Sarvam AI TTS per-slide narration
+* 🖼️→🎞️ Marp-CLI rendering to PNG frames
+* 🎬 ffmpeg assembly into MP4
+* 🌐 Streamlit UI with live step-by-step progress (⏳ → 🔄 → ✅)
+* Flexible slide count (2-20) and *slides-only* fast-mode
+
+---
+
+
 1. ~~communication with LLM about figures and location is messed up. Handle that~~
  - ~~first see where and how figures are stored~~
  - ~~modify prompt to include figures whenever relevant~~
@@ -241,7 +253,7 @@ The project includes a Streamlit web interface for interactive usage and step-by
 ### Main App File
 
 * **`streamlit_app.py`**: Main Streamlit app providing a web interface for the paper-to-video pipeline. Offers file upload, processing status tracking, and downloadable outputs.
-* **`streamlit_app_fixed.py`**: Enhanced version with improved logging and error handling.
+* **`streamlit_app_enhanced.py`**: Enhanced version with live progress tracking, improved logging and error handling.
 
 ### Processor Modules
 
@@ -275,7 +287,7 @@ export GEMINI_API_KEY="your-gemini-api-key"
 export SARVAM_API_KEY="your-sarvam-api-key"
 
 # Launch the Streamlit app
-python -m streamlit run streamlit_app_fixed.py
+python -m streamlit run streamlit_app_enhanced.py
 ```
 
 The UI provides:

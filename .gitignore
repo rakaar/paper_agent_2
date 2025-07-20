@@ -21,6 +21,10 @@ env/
 .DS_Store
 Thumbs.db
 
+# Temporary scratch scripts
+*_temp.py
+*fixed*.py
+
 # Generated files from this project
 slides/
 paper_structured.json
