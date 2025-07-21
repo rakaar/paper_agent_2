@@ -37,6 +37,36 @@ from utils.ui_components import (
 )
 from utils.file_helpers import save_uploaded_file
 
+def cleanup_old_files():
+    """Remove old generated files before starting new processing"""
+    slides_dir = Path("slides")
+    if slides_dir.exists():
+        # Remove common generated files
+        files_to_remove = [
+            "deck.md",
+            "video.mp4",
+        ]
+        
+        for file_name in files_to_remove:
+            file_path = slides_dir / file_name
+            if file_path.exists():
+                file_path.unlink()
+                print(f"Removed old file: {file_path}")
+        
+        # Remove directories
+        dirs_to_remove = ["audio", "frames"]
+        for dir_name in dirs_to_remove:
+            dir_path = slides_dir / dir_name
+            if dir_path.exists():
+                import shutil
+                shutil.rmtree(dir_path)
+                print(f"Removed old directory: {dir_path}")
+        
+        # Remove any slides plan JSON files
+        for json_file in slides_dir.glob("*_slides_plan.json"):
+            json_file.unlink()
+            print(f"Removed old JSON file: {json_file}")
+
 # Page config
 st.set_page_config(
     page_title="Paper Explainer 📑",
@@ -302,6 +332,9 @@ if 'start_button' in locals() and start_button and uploaded_file is not None and
     }
     st.session_state.progress_details = {}
     
+    # Clean up old files before starting
+    cleanup_old_files()
+    
     # Rerun to show progress immediately
     st.rerun()
 
@@ -314,9 +347,7 @@ if st.session_state.processing_started and not st.session_state.processing_compl
     # Create output directories
     import shutil
     slides_dir = "slides"
-    # Clean previous outputs to avoid stale files
-    if os.path.exists(slides_dir):
-        shutil.rmtree(slides_dir)
+    # Directory cleanup is handled by cleanup_old_files() at the start
     figures_dir = os.path.join(st.session_state.temp_dir, "figures")
     audio_dir = os.path.join(slides_dir, "audio")
     frames_dir = os.path.join(slides_dir, "frames")
@@ -349,10 +380,14 @@ if st.session_state.processing_started and not st.session_state.processing_compl
             update_step_status("llm_processing", "processing", "Generating slide content with LLM...")
             update_progress("llm_processing", detail="Sending content to LLM for processing")
             
+            # Get original filename without extension
+            original_filename = Path(uploaded_file.name).stem if uploaded_file else "document"
+            
             slides_json_path = generate_slides_content(
                 st.session_state.text_content, 
                 st.session_state.output_paths.get("figures_metadata"), 
-                max_slides=max_slides
+                max_slides=max_slides,
+                original_filename=original_filename
             )
             st.session_state.output_paths["slides_json"] = slides_json_path
             

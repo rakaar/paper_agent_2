@@ -23,7 +23,7 @@ Key capabilities (2025-07):
 
 3. ~~Improve deck creation by more detailed prompt~~
 
-4. issue in making slides now.
+4. ~~issue in making slides now.~~ ✅ **FIXED** - JSON file creation and Marp conversion
 
 5. tests to test without UI
 
@@ -36,6 +36,18 @@ Key capabilities (2025-07):
 9. more customization on methods?
 
 10. ollama gemma-3n on server
+
+## Recent Fixes & Improvements (2025-01)
+
+✅ **Fixed JSON File Creation Bug**: Resolved issue where slides JSON files were being created then immediately deleted due to conflicting cleanup mechanisms
+
+✅ **Improved File Naming**: Restored consistent filename convention (`<original_filename>_slides_plan.json`) instead of hash-based naming
+
+✅ **Enhanced Error Handling**: Better error messages and debugging for `json2marp.py` conversion process
+
+✅ **Streamlit UI Enhancements**: Added comprehensive progress tracking with real-time status updates and emoji indicators
+
+✅ **Fixed Missing Import**: Resolved `sys` import issue in `json2marp.py` that was causing script failures
 
 ## Directory Layout
 
@@ -62,7 +74,26 @@ paper-explainer/
 
 ## Usage
 
-The process is a two-step pipeline to ensure figures are included correctly.
+### 🌐 **Streamlit Web Interface (Recommended)**
+
+The easiest way to use Paper Explainer is through the enhanced Streamlit web interface with live progress tracking:
+
+```bash
+# Activate virtual environment
+source venv/bin/activate
+
+# Start the web interface
+streamlit run streamlit_app_enhanced.py --server.port 8502
+```
+
+Then open your browser to `http://localhost:8502` and:
+1. Upload your PDF file
+2. Choose slide count (2-20)
+3. Watch real-time progress as your video is created!
+
+### 📝 **Command Line Interface**
+
+For advanced users, you can also use the command-line interface. The process is a two-step pipeline to ensure figures are included correctly.
 
 **Step 1: Extract Figures from the PDF**
 
@@ -315,6 +346,7 @@ This project requires:
 *   **`marp` CLI not found**: Ensure Node.js and `marp-cli` are installed globally (`npm i -g @marp-team/marp-cli`).
 *   **`ffmpeg` not found**: Ensure FFmpeg is installed on your system and accessible from your PATH.
 *   **API Key Errors**: Double-check that your `GEMINI_API_KEY` and `SARVAM_API_KEY` environment variables are correctly set.
+*   **"JSON file not found" Error**: This was a known issue that has been fixed. If you encounter this, ensure you're using the latest version of the code with the corrected file cleanup logic.
 *   **Empty `frames/` directory or Blank Slides**: If Marp runs but no PNGs are generated, or you get an extra blank slide at the beginning or end, there may be an issue with the `deck.md` structure. The `json2marp.py` script is designed to prevent this, but if you modify it, ensure the front-matter (`---`) is correctly formatted and separated from the content.
 *   **FFmpeg errors during video creation**: If you encounter errors related to audio streams or file durations, it may be due to inconsistencies in the WAV files produced by the TTS service. The scripts now include an audio pre-processing step to standardize the audio files before passing them to `ffmpeg`, which should prevent these issues.
 
