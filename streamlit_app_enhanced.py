@@ -477,61 +477,25 @@ if st.session_state.processing_complete:
     st.markdown("## 🎉 Results")
     
     # Create tabs for different outputs
-    tabs = ["📊 Summary"]
-    
-    if st.session_state.output_paths.get("figures_metadata"):
-        tabs.append("🖼️ Figures")
-    
-    if st.session_state.output_paths.get("frames_dir"):
-        tabs.append("📋 Slides")
-    
-    if st.session_state.output_paths.get("audio_dir"):
-        tabs.append("🔊 Audio")
-    
-    if st.session_state.output_paths.get("video"):
-        tabs.append("🎬 Video")
-    
-    tab_objects = st.tabs(tabs)
-    
-    # Summary tab
-    with tab_objects[0]:
-        st.markdown("### Processing Summary")
-        
-        completed_steps = sum(1 for status in st.session_state.processing_status.values() 
-                            if status["status"] == "complete")
-        total_steps = len(st.session_state.processing_status)
-        
-        st.metric("Completed Steps", f"{completed_steps}/{total_steps}")
-        
+    video_tab, slides_tab, figures_tab = st.tabs(["🎬 Video", "📋 Slides", "🖼️ Figures"])
+
+    with video_tab:
         if st.session_state.output_paths.get("video"):
-            video_path = st.session_state.output_paths["video"]
-            if os.path.exists(video_path):
-                size_mb = os.path.getsize(video_path) / (1024 * 1024)
-                st.metric("Video Size", f"{size_mb:.1f} MB")
-    
-    # Figures tab
-    tab_idx = 1
-    if st.session_state.output_paths.get("figures_metadata"):
-        with tab_objects[tab_idx]:
-            display_figures(st.session_state.output_paths["figures_metadata"])
-        tab_idx += 1
-    
-    # Slides tab
-    if st.session_state.output_paths.get("frames_dir"):
-        with tab_objects[tab_idx]:
-            display_slides_preview(st.session_state.output_paths["frames_dir"])
-        tab_idx += 1
-    
-    # Audio tab
-    if st.session_state.output_paths.get("audio_dir"):
-        with tab_objects[tab_idx]:
-            display_audio_preview(st.session_state.output_paths["audio_dir"])
-        tab_idx += 1
-    
-    # Video tab
-    if st.session_state.output_paths.get("video"):
-        with tab_objects[tab_idx]:
             display_video_player(st.session_state.output_paths["video"])
+        else:
+            st.info("Video was not generated or is unavailable.")
+
+    with slides_tab:
+        if st.session_state.output_paths.get("frames_dir"):
+            display_slides_preview(st.session_state.output_paths["frames_dir"])
+        else:
+            st.info("Slides were not generated or are unavailable.")
+
+    with figures_tab:
+        if st.session_state.output_paths.get("figures_metadata"):
+            display_figures(st.session_state.output_paths["figures_metadata"])
+        else:
+            st.info("No figures were extracted or they are unavailable.")
 
 # Footer
 st.markdown("---")

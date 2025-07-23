@@ -80,37 +80,59 @@ def display_figures(figures_metadata_path):
 
 def display_slides_preview(frames_dir):
     """
-    Display slide previews in the UI
-    
+    Display slide previews in the UI with a carousel-style interface.
+
     Args:
-        frames_dir (str): Path to the directory containing slide PNG frames
+        frames_dir (str): Path to the directory containing slide PNG frames.
     """
     try:
         frames_path = Path(frames_dir)
         png_files = sorted(frames_path.glob("deck.*.png"))
-        
+
         if not png_files:
             st.info("No slide images available for preview.")
             return
-        
+
         st.markdown(f"### {len(png_files)} Slides Generated")
+
+        # Initialize session state for slide index
+        if 'slide_index' not in st.session_state:
+            st.session_state.slide_index = 0
+
+        # Ensure index is within bounds
+        num_slides = len(png_files)
+        st.session_state.slide_index = max(0, min(st.session_state.slide_index, num_slides - 1))
+
+        # Create columns for navigation
+        col1, col2, col3 = st.columns([1, 10, 1])
+
+        with col1:
+            if st.button("◀️ Prev", use_container_width=True):
+                if st.session_state.slide_index > 0:
+                    st.session_state.slide_index -= 1
+                    st.rerun()
+
+        with col3:
+            if st.button("Next ▶️", use_container_width=True):
+                if st.session_state.slide_index < num_slides - 1:
+                    st.session_state.slide_index += 1
+                    st.rerun()
         
-        # Create a slider to browse through slides
-        selected_slide = st.slider("Browse slides", 1, len(png_files), 1)
-        
-        # Display the selected slide
-        st.image(png_files[selected_slide-1], use_container_width=True)
-        
+        # Display the current slide
+        current_slide_index = st.session_state.slide_index
+        st.image(
+            str(png_files[current_slide_index]),
+            caption=f"Slide {current_slide_index + 1}/{num_slides}",
+            use_container_width=True
+        )
+
         # Option to view all slides
         if st.checkbox("Show all slides"):
-            # Display slides in a grid (up to 3 columns)
-            cols = st.columns(min(3, len(png_files)))
-            
+            cols = st.columns(min(3, num_slides))
             for i, png_file in enumerate(png_files):
-                col_idx = i % len(cols)
-                with cols[col_idx]:
-                    st.image(png_file, caption=f"Slide {i+1}", use_container_width=True)
-    
+                with cols[i % len(cols)]:
+                    st.image(str(png_file), caption=f"Slide {i + 1}", use_container_width=True)
+
     except Exception as e:
         st.error(f"Error displaying slide previews: {str(e)}")
 
