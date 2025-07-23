@@ -14,40 +14,19 @@ Key capabilities (2025-07):
 
 ---
 
+# TODO
 
-1. ~~communication with LLM about figures and location is messed up. Handle that~~
- - ~~first see where and how figures are stored~~
- - ~~modify prompt to include figures whenever relevant~~
+## Features
+- [ ] Port to Ollama: gemma 3n
+- [ ] When extracting test, index sections and chat with paper
+- [ ] Improve Figure cropping: Drawing lines or finetuning
 
-2. ~~Format text to LLM for creating slides.~~
 
-3. ~~Improve deck creation by more detailed prompt~~
+## Development
+- [ ] Tests to test without UI
+- [ ] Deploy on GCP
 
-4. ~~issue in making slides now.~~ ✅ **FIXED** - JSON file creation and Marp conversion
 
-5. tests to test without UI
-
-6. merge in the main branch
-
-7. Improve figure cropping 
-
-8. get sub figure cropping
-
-9. more customization on methods?
-
-10. ollama gemma-3n on server
-
-## Recent Fixes & Improvements (2025-01)
-
-✅ **Fixed JSON File Creation Bug**: Resolved issue where slides JSON files were being created then immediately deleted due to conflicting cleanup mechanisms
-
-✅ **Improved File Naming**: Restored consistent filename convention (`<original_filename>_slides_plan.json`) instead of hash-based naming
-
-✅ **Enhanced Error Handling**: Better error messages and debugging for `json2marp.py` conversion process
-
-✅ **Streamlit UI Enhancements**: Added comprehensive progress tracking with real-time status updates and emoji indicators
-
-✅ **Fixed Missing Import**: Resolved `sys` import issue in `json2marp.py` that was causing script failures
 
 ## Directory Layout
 
