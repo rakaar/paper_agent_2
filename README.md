@@ -137,7 +137,7 @@ The script will perform all subsequent steps, and the final video will be availa
     6.  Calls `json2marp.py` to convert the LLM's JSON into a Marp Markdown file (`slides/deck.md`), potentially embedding the paths to the extracted figures.
     6.  Generates audio narration files (`slides/audio/slideXX.wav`) for each slide using Sarvam AI's Text-to-Speech (TTS) service.
     7.  Renders the Marp Markdown file into individual PNG image frames (`slides/frames/deck.00X.png`) using the `marp-cli` tool.
-    8.  Combines the generated PNG frames and audio files into a single MP4 video (`slides/video.mp4`) using `ffmpeg`.
+    8.  Combines the generated PNG frames and audio files into a single MP4 video (`slides/video.mp4`) using `ffmpeg`).
 
 *   **`debug_video.py`**: A standalone utility script for debugging the video creation step. It regenerates the `video.mp4` file from the existing PNG frames in `slides/frames/` and WAV audio files in `slides/audio/`. This is useful for testing changes to the video encoding without re-running the entire LLM and TTS pipeline.
 
@@ -297,3 +297,226 @@ This project requires:
 *   **FFmpeg errors during video creation**: If you encounter errors related to audio streams or file durations, it may be due to inconsistencies in the WAV files produced by the TTS service. The scripts now include an audio pre-processing step to standardize the audio files before passing them to `ffmpeg`, which should prevent these issues.
 
 Feel free to explore and modify the scripts to suit your specific needs!
+
+## Deployment
+
+### Deployment on a Google Cloud Platform (GCP) VM
+
+This section details the steps to deploy the Paper Explainer application as a persistent service on a Google Cloud Platform Compute Engine VM. This setup ensures the application starts automatically on boot, restarts if it crashes, and is accessible from the public internet via a standard HTTP port.
+
+**Before you begin, replace all placeholders in angle brackets (e.g., `<YOUR_USER>`) with your specific values.**
+
+- **VM Public IP Address:** `<YOUR_VM_IP_ADDRESS>`
+- **GCP Project ID:** `<YOUR_GCP_PROJECT_ID>`
+- **User:** `<YOUR_USER>`
+- **Project Directory:** `/<PATH_TO_PROJECT_REPO>`
+
+#### 1. System Dependencies and Project Setup
+
+Before deploying, install the following system-level dependencies on the VM:
+
+- **Node.js and npm:** Required for `marp-cli`.
+- **FFmpeg:** Essential for video assembly.
+- **python3.11-venv:** Required for creating Python virtual environments.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y nodejs npm ffmpeg python3.11-venv
+```
+
+Install the `marp-cli` Node.js package globally:
+```bash
+sudo npm i -g @marp-team/marp-cli
+```
+
+Create a Python virtual environment and install dependencies:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+#### 2. systemd Service for Streamlit Application
+
+To run the Streamlit application persistently, create a `systemd` service.
+
+**Purpose of `paper-explainer.service`:**
+This file defines how the operating system manages the Streamlit application, ensuring it starts on boot, runs as your user, and restarts on failure.
+
+- **File Location:** `/etc/systemd/system/paper-explainer.service`
+- **Action:** Create the `paper-explainer.service` file in your project directory with the content below. **Remember to replace the placeholders.**
+
+  ```ini
+  [Unit]
+  Description=Paper Explainer Streamlit Service
+  After=network.target
+
+  [Service]
+  User=<YOUR_USER>
+  Group=<YOUR_USER>
+  WorkingDirectory=/<PATH_TO_PROJECT_REPO>
+  # Recommended: Use EnvironmentFile for security
+  # Create /etc/paper-explainer.env with your API keys
+  # EnvironmentFile=/etc/paper-explainer.env
+  Environment="GEMINI_API_KEY=<YOUR_GEMINI_API_KEY>"
+  Environment="SARVAM_API_KEY=<YOUR_SARVAM_API_KEY>"
+  # Note: Ensure the PATH includes the directory where npx is installed.
+  # You can find it by running 'which npx' as the correct user.
+  Environment="PATH=/home/<YOUR_USER>/.nvm/versions/node/v22.17.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  ExecStart=/<PATH_TO_PROJECT_REPO>/venv/bin/streamlit run streamlit_app_enhanced.py --server.port 8502 --server.address 0.0.0.0
+  Restart=always
+
+  [Install]
+  WantedBy=multi-user.target
+  ```
+  **Security Best Practice:** For managing API keys, it is highly recommended to use the `EnvironmentFile` directive. Create a file at `/etc/paper-explainer.env` with the following content:
+  ```
+  GEMINI_API_KEY=<YOUR_GEMINI_API_KEY>
+  SARVAM_API_KEY=<YOUR_SARVAM_API_KEY>
+  ```
+  Then, in your `paper-explainer.service` file, replace the `Environment` lines for the keys with `EnvironmentFile=/etc/paper-explainer.env`. Make sure to secure this file with `sudo chmod 600 /etc/paper-explainer.env`.
+
+**Deployment Steps for `systemd` service:**
+
+Copy the service file to the systemd directory:
+```bash
+sudo cp /<PATH_TO_PROJECT_REPO>/paper-explainer.service /etc/systemd/system/paper-explainer.service
+```
+
+Reload the systemd daemon, enable the service to start on boot, and start it:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable paper-explainer.service
+sudo systemctl start paper-explainer.service
+```
+
+**`update_service.sh` Script:**
+This helper script automates updating the service. **Remember to replace the placeholder.**
+  ```bash
+  #!/bin/bash
+  set -e
+  echo "1. Copying the updated systemd service file..."
+  sudo cp /<PATH_TO_PROJECT_REPO>/paper-explainer.service /etc/systemd/system/paper-explainer.service
+  echo "2. Reloading the systemd daemon..."
+  sudo systemctl daemon-reload
+  echo "3. Restarting the Paper Explainer service..."
+  sudo systemctl restart paper-explainer.service
+  echo "Done."
+  ```
+
+#### 3. Nginx Reverse Proxy for Public Access
+
+Set up Nginx as a reverse proxy to make the application accessible on port 80.
+
+**Nginx Installation:**
+```bash
+sudo apt-get update
+sudo apt-get install -y nginx
+```
+
+**Purpose of `paper-explainer-nginx.conf`:**
+This Nginx configuration file forwards public traffic from port 80 to the internal Streamlit application on port 8502.
+
+- **File Location:** `/etc/nginx/sites-available/paper-explainer.conf`
+- **Action:** Create `paper-explainer-nginx.conf` in your project directory. **Replace the placeholder.**
+
+  ```nginx
+  server {
+      listen 80;
+      server_name <YOUR_VM_IP_ADDRESS>;
+      client_max_body_size 100M;
+
+      location / {
+          proxy_pass http://127.0.0.1:8502;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+      }
+
+      location /healthz {
+          proxy_pass http://127.0.0.1:8502/healthz;
+      }
+
+      location /static {
+          proxy_pass http://127.0.0.1:8502/static;
+      }
+  }
+  ```
+
+**Deployment Steps for Nginx:**
+
+Remove the default Nginx configuration:
+```bash
+sudo rm /etc/nginx/sites-enabled/default
+```
+
+Copy the new configuration and create a symlink to enable it:
+```bash
+sudo cp /<PATH_TO_PROJECT_REPO>/paper-explainer-nginx.conf /etc/nginx/sites-available/paper-explainer.conf
+sudo ln -s /etc/nginx/sites-available/paper-explainer.conf /etc/nginx/sites-enabled/
+```
+
+Test the Nginx configuration and restart the service:
+```bash
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+**`update_nginx.sh` Script:**
+This script automates updating the Nginx configuration. **Replace the placeholder.**
+  ```bash
+  #!/bin/bash
+  set -e
+  echo "1. Copying the updated Nginx configuration file..."
+  sudo cp /<PATH_TO_PROJECT_REPO>/paper-explainer-nginx.conf /etc/nginx/sites-available/paper-explainer.conf
+  echo "2. Testing the Nginx configuration..."
+  sudo nginx -t
+  echo "3. Restarting Nginx..."
+  sudo systemctl restart nginx
+  echo "Done."
+  ```
+
+#### 4. Firewall Configuration (VM Host & GCP)
+
+Allow public access to port 80 through the host and GCP firewalls.
+
+**On-Host Firewall (`iptables`):**
+```bash
+sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+sudo iptables -D INPUT -p tcp --dport 8502 -j ACCEPT # Remove old rule if it exists
+sudo apt-get install -y iptables-persistent
+sudo netfilter-persistent save
+```
+
+**GCP Cloud Firewall:**
+Run these `gcloud` commands from your local machine or Cloud Shell. **Replace the placeholder.**
+```bash
+gcloud compute firewall-rules create paper-explainer-allow-http \
+    --project=<YOUR_GCP_PROJECT_ID> \
+    --direction=INGRESS \
+    --priority=1000 \
+    --network=default \
+    --action=ALLOW \
+    --rules=tcp:80 \
+    --source-ranges=0.0.0.0/0
+
+gcloud compute firewall-rules delete paper-explainer-allow-8502 --quiet
+```
+
+#### 5. Updating the Deployment
+
+To apply changes to your application or configuration, use the update scripts:
+
+- **To update the Streamlit service:**
+  ```bash
+  ./update_service.sh
+  ```
+
+- **To update the Nginx configuration:**
+  ```bash
+  ./update_nginx.sh
+  ```
