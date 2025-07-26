@@ -221,40 +221,7 @@ set SARVAM_API_KEY="YOUR_SARVAM_API_KEY"
 
 For persistent environment variables, refer to your operating system's documentation.
 
-## Usage
 
-To run the pipeline, execute the `txt2slides.py` script with one or more plain-text (`.txt`) files as arguments.
-
-```bash
-source venv/bin/activate # Activate your virtual environment
-python3 txt2slides.py paper_structured_page_1.txt paper_structured_page_2.txt
-```
-
-### What You Get
-
-After successful execution, the `slides/` directory will contain:
-
-*   **`deck.md`**: The Marp Markdown file generated from the LLM's output.
-*   **`frames/`**: A directory containing PNG images of each slide (e.g., `deck.001.png`, `deck.002.png`).
-*   **`audio/`**: A directory containing WAV audio files for each slide's narration (e.g., `slide01.wav`, `slide02.wav`).
-*   **`<original_filename>_slides_plan.json`**: A JSON file containing the structured data for each slide (title, content, audio script) as returned by the LLM.
-
-*   **`video.mp4`**: The final MP4 video presentation, combining the slide images and their respective audio narrations.
-
-## Command-line Flags
-
-* `--max-slides N` – force the LLM to generate exactly N slides, overriding the automatic heuristic.
-* `--slides-only` – skip audio narration and video assembly; still renders PNG frames for a fast visual check.
-
-Example rapid-iteration run:
-
-```bash
-python3 txt2slides.py path/to/paper.pdf \
-    --figures-path extracted_figures_llm/figures_metadata.json \
-    --max-slides 12 --slides-only
-```
-
----
 
 ## UI Components
 
