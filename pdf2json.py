@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ValidationError
 from typing import List, Literal, Optional
 import google.generativeai as genai
 import time
+import ollama
 
 # Pydantic Models for LLM response validation
 class Block(BaseModel):
@@ -46,6 +47,35 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
                 time.sleep(5)
             else:
                 raise # Re-raise the exception if max retries reached
+
+def call_ollama_llm(system_prompt: str, user_prompt: str) -> list:
+    """Calls the Ollama model, expects a JSON response, and returns a list of slides."""
+    try:
+        response = ollama.chat(
+            model='gemma3n:e4b',
+            messages=[
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': user_prompt},
+            ],
+            format='json'
+        )
+        response_content = response['message']['content']
+        parsed_json = json.loads(response_content)
+
+        # Check if the response is a dictionary containing the 'slides' key
+        if isinstance(parsed_json, dict) and 'slides' in parsed_json and isinstance(parsed_json['slides'], list):
+            return parsed_json['slides']
+        # Handle the case where the response is already a list (for robustness)
+        elif isinstance(parsed_json, list):
+            return parsed_json
+        else:
+            print(f"Warning: Ollama response was not in the expected format (dict with 'slides' or a list).")
+            print(f"Response content: {parsed_json}")
+            return []
+
+    except Exception as e:
+        print(f"Error calling Ollama or processing its response: {e}")
+        return []
 
 def process_pdf(pdf_path: str, output_path: str, api_key: str):
     """

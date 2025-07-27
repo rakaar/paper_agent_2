@@ -34,7 +34,7 @@ def compact_whitespace(text: str) -> str:
             prev_blank = False
     return "\n".join(lines).strip()
 
-from pdf2json import call_llm
+from pdf2json import call_llm, call_ollama_llm
 
 # Try to import pptx and provide a helpful error message if it's not installed.
 try:
@@ -56,11 +56,7 @@ except ImportError:
     print("pip install sarvamai")
     sys.exit(1)
 
-# Sarvam API Key (read from environment variable)
-SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
-if not SARVAM_API_KEY:
-    print("Error: SARVAM_API_KEY environment variable not set.")
-    sys.exit(1)
+
 
 def create_presentation(slides_data: list, output_filename: str):
     """Creates a PowerPoint presentation from slide data."""
@@ -315,6 +311,7 @@ def main():
     parser.add_argument("--figures-path", type=str, help="Optional path to a JSON file containing metadata for figures to be included.")
     parser.add_argument("--max-slides", type=int, help="Desired maximum number of slides (overrides heuristic).")
     parser.add_argument("--slides-only", action="store_true", help="Only generate slides JSON & Markdown; skip audio and video steps.")
+    parser.add_argument("--model", type=str, default="gemma", choices=["gemma", "gemini"], help="The LLM to use for slide generation (default: gemma).")
     
     args = parser.parse_args()
 
@@ -335,8 +332,9 @@ def main():
                 
                 print(f"Extracting text from PDF: {file_path}")
                 doc = fitz.open(file_path)
-                text = "".join(page.get_text() for page in doc)
-                combined_text.append(text)
+                # Extract text page by page
+                for page in doc:
+                    combined_text.append(page.get_text())
                 doc.close()
             else: # Assume .txt or other text format
                 with open(file_path, "r", encoding="utf-8") as f:
@@ -349,7 +347,15 @@ def main():
         print("No valid files were found. Exiting.")
         sys.exit(1)
 
-    full_text = "\n\n---\n\n".join(combined_text)
+
+
+    # --- Process Text and Generate Slides --- #
+    all_slides = []
+    # Heuristic for max_slides per page
+    if args.max_slides and args.max_slides > 0:
+        max_slides_per_page = max(1, args.max_slides // len(input_files) if len(input_files) > 0 else 1)
+    else:
+        max_slides_per_page = 3 # Default to 3 slides per page if not specified
 
     # --- Handle Figures --- #
     figures_prompt_injection = ""
@@ -381,13 +387,6 @@ You have been provided with a list of figures. Where relevant, you MUST embed th
             print(f"Warning: Could not decode JSON from '{args.figures_path}'. Continuing without figures.")
     # --- End Handle Figures --- #
 
-    # Calculate max_slides based on the number of input files
-    if args.max_slides and args.max_slides > 0:
-        max_slides = args.max_slides
-    else:
-        # Heuristic: roughly 1 slide per 1500 chars, capped 15
-        max_slides = min(15, max(2, len(full_text)//1500))
-
     system_prompt = """You are an AI assistant role-playing as a graduate student in a lab meeting, explaining an interesting paper to your peers.
 Your tone should be conversational, insightful, and slightly informal. Refer to the paper's authors as 'the authors' or 'the paper,' not 'we'.
 
@@ -397,75 +396,67 @@ The "content" field should contain the text for the slide body as a single strin
 The "audio" field should contain the narration script for the slide, matching your persona.
 
 IMPORTANT: The output MUST be a single, valid JSON object. Ensure that all strings are properly escaped. For example, use \n for newlines within the content and audio strings, and escape any double quotes. Do not add any extra text or formatting outside of the JSON object itself. The entire response should be parseable by a standard JSON parser."""
-    
-    # The user_prompt must be defined *after* figures_prompt_injection is created.
-    user_prompt = f"""**IMPORTANT:** First, review the list of available figures. You MUST embed these figures in the 'content' of relevant slides.
+
+    for page_num, page_text in enumerate(combined_text):
+        print(f"\n--- Processing Page {page_num + 1} with {args.model.upper()} ---")
+        
+        # Compact whitespace in prompts to save tokens
+        compacted_system_prompt = compact_whitespace(system_prompt)
+        
+        user_prompt = f"""**IMPORTANT:** First, review the list of available figures. You MUST embed these figures in the 'content' of relevant slides.
 {figures_prompt_injection}
 
-Now, please break the following text into exactly {max_slides} slides. Each slide must be a JSON object with these exact keys: "slide number", "title", "content", and "audio".
+Now, please break the following text into approximately {max_slides_per_page} slides. Each slide must be a JSON object with these exact keys: "slide number", "title", "content", and "audio".
 - "slide number": An integer for the slide order.
 - "title": A concise title for the slide.
 - "content": Keep this extremely minimal:
         * If the slide EMBEDS A FIGURE, use **max 2 short bullet points or <=120 characters**.
         * Otherwise 3-4 bullets or brief paragraph. This is for on-screen text only.
-- "audio": This should contain the full, detailed narration for the slide, suitable for text-to-speech. Maximize information transfer here.
+- "audio": This should contain the full, detailed narration for the slide, suitable for text-to-speech.
 
 Do not include any text, prose, or markdown formatting outside of the main JSON array.
 
 --- TEXT TO CONVERT ---
-{full_text}
+{page_text}
 
 --- END OF TEXT ---
 Remember to include the figures in your response where appropriate."""
+        compacted_user_prompt = compact_whitespace(user_prompt)
 
-    # For transparency, print the full user prompt being sent (can be verbose)
-    # Compact whitespace in prompts to save tokens
-    compacted_system_prompt = compact_whitespace(system_prompt)
-    compacted_user_prompt = compact_whitespace(user_prompt)
-
-    print("\n--- LLM USER PROMPT (truncated to 1500 chars) ---")
-    print(user_prompt[:1500] + ("..." if len(user_prompt) > 1500 else ""))
-    print("--- END PROMPT ---\n")
-
-    # Save full prompts to a file for user inspection
-    debug_prompt_path = Path("slides/full_llm_prompt.txt")
-    try:
-        debug_prompt_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(debug_prompt_path, "w", encoding="utf-8") as f:
-            f.write("=== SYSTEM PROMPT (raw) ===\n")
-            f.write(system_prompt + "\n\n")
-            f.write("=== USER PROMPT (raw) ===\n")
-            f.write(user_prompt + "\n\n")
-            f.write("=== SYSTEM PROMPT (compacted) ===\n")
-            f.write(compacted_system_prompt + "\n\n")
-            f.write("=== USER PROMPT (compacted) ===\n")
-            f.write(compacted_user_prompt)
-        print(f"Full LLM prompt written to {debug_prompt_path}")
-    except Exception as e:
-        print(f"Warning: could not write debug prompt file: {e}")
-    print("Sending content to the language model for processing...")
-    try:
-        llm_response_str = call_llm(compacted_system_prompt, compacted_user_prompt)
-        
-        # Parse the JSON response, fixing any unescaped newlines first
         try:
-            fixed_llm_response = fix_json_newlines(llm_response_str)
-            slides_data = json.loads(fixed_llm_response)
-        except json.JSONDecodeError as e:
-            print(f"Error decoding JSON even after fixing newlines: {e}")
-            # Save the problematic response for inspection
-            with open("llm_response_error.json", "w") as f:
-                f.write(llm_response_str)
-            print("Problematic response saved to llm_response_error.json")
-            return
-    except Exception as e:
-        print(f"An unexpected error occurred during LLM call or processing: {e}")
+            page_slides = []
+            if args.model == 'gemma':
+                print("Sending content to Ollama (gemma) for processing...")
+                # call_ollama_llm returns a dictionary (parsed JSON)
+                page_slides = call_ollama_llm(compacted_system_prompt, compacted_user_prompt)
+            else: # Default to gemini
+                print("Sending content to Google (gemini) for processing...")
+                llm_response_str = call_llm(compacted_system_prompt, compacted_user_prompt)
+                fixed_llm_response = fix_json_newlines(llm_response_str)
+                page_slides = json.loads(fixed_llm_response)
+
+            if page_slides:
+                print(f"  Successfully generated {len(page_slides)} slides for this page.")
+                all_slides.extend(page_slides)
+            else:
+                print("  No slides were generated for this page.")
+
+        except Exception as e:
+            print(f"Error generating slides for page {page_num + 1}: {e}")
+            continue
+
+    # --- Post-processing: Re-number all slides sequentially ---
+    if not all_slides:
+        print("\nNo slides were generated in total. Exiting.")
         sys.exit(1)
 
-    print("LLM response received and parsed successfully.")
-    
+    print(f"\nTotal slides generated: {len(all_slides)}. Renumbering slides...")
+    for i, slide in enumerate(all_slides):
+        slide['slide_number'] = i + 1
+
+    slides_data = all_slides
+
     # Define output directories and filenames
-    # Use only the stem (filename without directories) to avoid nested dirs inside slides/
     base_output_filename = Path(input_files[0]).stem
     slides_dir = Path("slides")
     slides_dir.mkdir(parents=True, exist_ok=True)
@@ -474,17 +465,15 @@ Remember to include the figures in your response where appropriate."""
     marp_md_path = slides_dir / "deck.md"
     audio_output_dir = slides_dir / "audio"
     frames_output_dir = slides_dir / "frames"
-    # Marp CLI needs a dummy file path in the target directory for image sequence output
     frames_output_path_template = frames_output_dir / "deck.png"
     video_output_path = slides_dir / "video.mp4"
-
-    # Ensure output subdir exists (might just be slides/)
-    json_output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Save slides data as JSON
     with open(json_output_path, "w", encoding="utf-8") as f:
         json.dump(slides_data, f, indent=2)
     print(f"Successfully saved slides plan JSON: {json_output_path}")
+
+
 
     # Generate Marp Markdown
     print("Generating Marp Markdown...")
@@ -507,6 +496,12 @@ Remember to include the figures in your response where appropriate."""
 
     # Generate audio files (skip in slides-only mode)
     if not args.slides_only:
+        # Check for Sarvam API key only when generating audio
+        SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
+        if not SARVAM_API_KEY:
+            print("Error: SARVAM_API_KEY environment variable not set. Cannot generate audio.")
+            sys.exit(1)
+        
         generate_audio_files(slides_data, str(audio_output_dir)) 
 
     # Render Marp Markdown to PNG frames
@@ -529,8 +524,10 @@ Remember to include the figures in your response where appropriate."""
         print(f"Successfully rendered PNG frames to: {frames_output_dir}")
     except subprocess.CalledProcessError as e:
         print(f"Error rendering Marp Markdown to PNGs: {e}")
-        print(f"Stdout: {e.stdout.decode()}")
-        print(f"Stderr: {e.stderr.decode()}")
+        if e.stdout:
+            print(f"Stdout: {e.stdout.decode()}")
+        if e.stderr:
+            print(f"Stderr: {e.stderr.decode()}")
         sys.exit(1)
 
     if args.slides_only:
@@ -545,8 +542,10 @@ Remember to include the figures in your response where appropriate."""
     except Exception as e:
         print(f"Error building video: {e}")
         if isinstance(e, subprocess.CalledProcessError):
-            print(f"ffmpeg stdout: {e.stdout.decode() if e.stdout else 'N/A'}")
-            print(f"ffmpeg stderr: {e.stderr.decode() if e.stderr else 'N/A'}")
+            if e.stdout:
+                print(f"ffmpeg stdout: {e.stdout.decode()}")
+            if e.stderr:
+                print(f"ffmpeg stderr: {e.stderr.decode()}")
         sys.exit(1)
 
     print("\nAll tasks completed.")

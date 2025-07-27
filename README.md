@@ -26,6 +26,9 @@ Key capabilities (2025-07):
 - [ ] Tests to test without UI
 - [ ] Deploy on GCP
 
+## Known Issues
+
+*   **Marp CLI Browser Dependency**: The `txt2slides.py` script uses `npx marp` to render Markdown slides into PNG frames. Marp requires a headless browser (like Chromium) to do this. In some environments, a suitable browser may not be installed or detected, causing the script to fail with a `No suitable browser found` error. Future work should involve explicitly providing the path to a browser executable to the `marp` command (e.g., via the `--chrome-path` flag) or ensuring a browser is installed as part of the environment setup.
 
 
 ## Directory Layout
