@@ -38,6 +38,9 @@ debug_marp_png.py
 *.pdf
 *.json
 !requirements*.json
+
+# Backup files
+*.bak
 !requirements.txt
 
 # !temp_figures_metadata.json

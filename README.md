@@ -219,7 +219,24 @@ source venv/bin/activate  # On Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Install Node.js and Marp CLI
+### 3. Install Ollama (for Local LLM Usage)
+
+Ollama is required to run local language models like Gemma for slide generation. The repository includes a script to install it on Linux.
+
+```bash
+# Make the script executable
+chmod +x install.sh
+
+# Run the installer
+./install.sh
+```
+
+After installing Ollama, you need to pull the model you intend to use. For example, to use `gemma:3n-e4b`:
+```bash
+ollama pull gemma:3n-e4b
+```
+
+### 4. Install Node.js and Marp CLI
 
 `marp-cli` is a Node.js package that converts Marp Markdown to various formats, including PNGs. It requires Node.js (version 18 or higher is recommended).
 
@@ -233,7 +250,7 @@ pip install -r requirements.txt
 npm i -g @marp-team/marp-cli
 ```
 
-### 4. Install FFmpeg
+### 5. Install FFmpeg
 
 FFmpeg is a powerful command-line tool used for handling multimedia files. It's essential for combining the image frames and audio into a video.
 
@@ -251,7 +268,7 @@ sudo pacman -S ffmpeg
 # For other operating systems, refer to the official FFmpeg website or your system's documentation.
 ```
 
-### 5. Set API Keys
+### 6. Set API Keys
 
 This project uses API keys for Gemini (via `pdf2json.py`) and Sarvam AI (for TTS). **Never hardcode your API keys in the source code.** Instead, set them as environment variables.
 
