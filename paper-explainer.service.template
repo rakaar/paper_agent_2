@@ -1,0 +1,16 @@
+[Unit]
+Description=Paper Explainer Streamlit Service
+After=network.target
+
+[Service]
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__PATH_TO_PROJECT_REPO__
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# Load API keys and other secrets securely
+EnvironmentFile=/etc/paper-explainer.env
+ExecStart=__PATH_TO_PROJECT_REPO__/venv/bin/streamlit run streamlit_app_enhanced.py --server.port 8502 --server.address 0.0.0.0
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

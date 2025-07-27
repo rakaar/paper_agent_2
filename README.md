@@ -99,6 +99,59 @@ This is the main script that generates the video. If you completed Step 1, provi
 
 The script will perform all subsequent steps, and the final video will be available at `slides/video.mp4`.
 
+## Deployment (Systemd Service)
+
+To run the Paper Explainer as a persistent background service on a Linux server, you can use the provided systemd service configuration. This ensures the application starts automatically on boot and restarts if it fails.
+
+1.  **Generate the Service File**:
+    The `install.sh` script generates a `paper-explainer.service` file tailored to your environment (correct user and project path).
+
+    ```bash
+    ./install.sh
+    ```
+
+2.  **Set Up Environment Variables**:
+    Create an environment file to store your API keys securely.
+
+    ```bash
+    # Copy the example environment file
+    sudo cp .env.example /etc/paper-explainer.env
+
+    # Open the file with a text editor (e.g., nano) and add your API keys
+    sudo nano /etc/paper-explainer.env
+
+    # Secure the file so only the root user and its group can read it
+    sudo chmod 600 /etc/paper-explainer.env
+    ```
+
+3.  **Install and Start the Service**:
+    Move the generated service file to the systemd directory and start the service.
+
+    ```bash
+    # Move the service file
+    sudo mv paper-explainer.service /etc/systemd/system/
+
+    # Reload the systemd daemon to recognize the new service
+    sudo systemctl daemon-reload
+
+    # Enable the service to start on boot
+    sudo systemctl enable paper-explainer.service
+
+    # Start the service immediately
+    sudo systemctl start paper-explainer.service
+    ```
+
+4.  **Check Service Status**:
+    You can check the status of the service and view its logs to ensure it's running correctly.
+
+    ```bash
+    # Check the status
+    sudo systemctl status paper-explainer.service
+
+    # View the latest logs
+    journalctl -u paper-explainer.service -f
+    ```
+
 ## Core Components & What They Do
 
 *   **`pdf2json.py`**: This file contains the `call_llm` helper function, which is responsible for sending prompts to the Gemini 2.5 Pro LLM and returning its raw JSON response. It handles authentication, retries, and model selection internally.
