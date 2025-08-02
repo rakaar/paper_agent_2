@@ -224,9 +224,34 @@ def create_video_with_progress(frames_dir, audio_dir, output_path):
             raise Exception("Video creation failed")
             
     except Exception as e:
-        error_msg = f"Video creation failed: {str(e)}"
-        update_step_status("video_creation", "error", error_msg)
-        update_progress("video_creation", detail=f"❌ {error_msg}")
+        # Display the detailed error message from our improved ffmpeg handling
+        error_msg = str(e)
+        
+        # Make the error more readable in the UI
+        if "FFmpeg" in error_msg and "failed:" in error_msg:
+            # Already well formatted from our video creator
+            display_error = error_msg
+        else:
+            # Add context for other errors
+            display_error = f"Video creation failed: {error_msg}"
+        
+        update_step_status("video_creation", "error", "Video creation failed")
+        update_progress("video_creation", detail=f"❌ {display_error}")
+        
+        # Store error in session state for persistent display
+        error_entry = {
+            "step": "Video Creation", 
+            "error": display_error,
+            "timestamp": "now"
+        }
+        st.session_state.error_messages.append(error_entry)
+        
+        # Also show the error in the main UI
+        st.error(f"**Video Creation Error:**\\n\\n{display_error}")
+        
+        # Set flag to stop further processing
+        st.session_state.processing_failed = True
+        
         return None
 
 # Main UI

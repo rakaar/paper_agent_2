@@ -71,7 +71,28 @@ def create_video(frames_dir, audio_dir, output_path=None, progress_callback=None
                 "-ac", "2", # Stereo
                 str(standardized_path)
             ]
-            subprocess.run(standardize_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            result = subprocess.run(standardize_cmd, check=False, capture_output=True, text=True)
+            if result.returncode != 0:
+                error_details = []
+                error_details.append(f"Audio standardization failed for {audio_file.name}")
+                error_details.append(f"FFmpeg command: {' '.join(standardize_cmd)}")
+                if result.stdout:
+                    error_details.append(f"STDOUT: {result.stdout.strip()}")
+                if result.stderr:
+                    error_details.append(f"STDERR: {result.stderr.strip()}")
+                
+                # Common ffmpeg audio issues
+                stderr_lower = result.stderr.lower() if result.stderr else ""
+                if "no space left" in stderr_lower:
+                    error_details.append("SOLUTION: Free up disk space")
+                elif "permission denied" in stderr_lower:
+                    error_details.append("SOLUTION: Check file permissions for input/output files")
+                elif "invalid data found" in stderr_lower:
+                    error_details.append("SOLUTION: The audio file may be corrupted")
+                elif "codec not found" in stderr_lower:
+                    error_details.append("SOLUTION: Install additional ffmpeg codecs")
+                
+                raise Exception("FFmpeg audio preprocessing failed:\n" + "\n".join(error_details))
             standardized_audio_files.append(standardized_path)
         update_progress("Audio pre-processing complete")
 
@@ -110,7 +131,34 @@ def create_video(frames_dir, audio_dir, output_path=None, progress_callback=None
                 "-t", str(duration), # Set video duration to audio duration
                 str(clip_output_path)
             ]
-            subprocess.run(clip_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            result = subprocess.run(clip_cmd, check=False, capture_output=True, text=True)
+            if result.returncode != 0:
+                error_details = []
+                error_details.append(f"Video clip creation failed for slide {slide_num}")
+                error_details.append(f"PNG file: {png_file}")
+                error_details.append(f"Audio file: {audio_file}")
+                error_details.append(f"FFmpeg command: {' '.join(clip_cmd)}")
+                if result.stdout:
+                    error_details.append(f"STDOUT: {result.stdout.strip()}")
+                if result.stderr:
+                    error_details.append(f"STDERR: {result.stderr.strip()}")
+                
+                # Common ffmpeg video creation issues
+                stderr_lower = result.stderr.lower() if result.stderr else ""
+                if "no such file" in stderr_lower:
+                    error_details.append("SOLUTION: Check that PNG and audio files exist")
+                elif "invalid data found" in stderr_lower:
+                    error_details.append("SOLUTION: PNG or audio file may be corrupted")
+                elif "encoder not found" in stderr_lower or "codec not found" in stderr_lower:
+                    error_details.append("SOLUTION: Install full ffmpeg with libx264 codec")
+                elif "permission denied" in stderr_lower:
+                    error_details.append("SOLUTION: Check file permissions")
+                elif "no space left" in stderr_lower:
+                    error_details.append("SOLUTION: Free up disk space")
+                elif "duration too small" in stderr_lower:
+                    error_details.append("SOLUTION: Audio file duration might be invalid")
+                
+                raise Exception("FFmpeg video clip creation failed:\n" + "\n".join(error_details))
             individual_clips.append(clip_output_path)
         
         if not individual_clips:
@@ -132,7 +180,32 @@ def create_video(frames_dir, audio_dir, output_path=None, progress_callback=None
             "-c", "copy", 
             str(output_video_path)
         ]
-        subprocess.run(final_concat_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        result = subprocess.run(final_concat_cmd, check=False, capture_output=True, text=True)
+        if result.returncode != 0:
+            error_details = []
+            error_details.append(f"Video concatenation failed")
+            error_details.append(f"Concat file: {concat_file_list_path}")
+            error_details.append(f"Output path: {output_video_path}")
+            error_details.append(f"FFmpeg command: {' '.join(final_concat_cmd)}")
+            if result.stdout:
+                error_details.append(f"STDOUT: {result.stdout.strip()}")
+            if result.stderr:
+                error_details.append(f"STDERR: {result.stderr.strip()}")
+            
+            # Common ffmpeg concatenation issues
+            stderr_lower = result.stderr.lower() if result.stderr else ""
+            if "no such file" in stderr_lower:
+                error_details.append("SOLUTION: Check that all clip files exist")
+            elif "invalid data found" in stderr_lower:
+                error_details.append("SOLUTION: One or more video clips may be corrupted")
+            elif "permission denied" in stderr_lower:
+                error_details.append("SOLUTION: Check write permissions for output directory")
+            elif "no space left" in stderr_lower:
+                error_details.append("SOLUTION: Free up disk space")
+            elif "unsafe file name" in stderr_lower:
+                error_details.append("SOLUTION: File paths in concat list may have issues")
+            
+            raise Exception("FFmpeg video concatenation failed:\n" + "\n".join(error_details))
         
         update_progress(f"Video creation completed: {output_video_path}")
         return str(output_video_path)
