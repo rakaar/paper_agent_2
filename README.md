@@ -3,9 +3,9 @@
 Convert any academic paper into a short, narrated slide-deck video – end-to-end, in one click.
 
 Key capabilities (2025-07):
-* 📑 PDF text extraction
-* 🖼️ Figure detection & cropping (vision LLM)
-* ✨ Gemini-pro slide synthesis with Markdown + narration script
+* 📑 PDF text extraction with Mistral OCR
+* 🖼️ Figure detection & cropping with Mistral OCR
+* ✨ LLM slide synthesis with Markdown + narration script
 * 🔊 Sarvam AI TTS per-slide narration
 * 🖼️→🎞️ Marp-CLI rendering to PNG frames
 * 🎬 ffmpeg assembly into MP4
@@ -163,57 +163,58 @@ To run the Paper Explainer as a persistent background service on a Linux server,
 
 *   **Whitespace-compaction in `txt2slides.py`**: The script now automatically collapses unnecessary internal spaces, tabs, and blank lines in the prompts before sending them to Gemini. This reduces token usage while retaining readability. For debugging, the raw *and* compacted prompts are written to `slides/full_llm_prompt.txt` (which remains git-ignored by default).
 
-*   **`extract_images_llm.py`**: Implements a sophisticated, vision-based pipeline to extract figures from PDF documents. It works by converting each PDF page into a high-resolution image and sending it to a multimodal LLM (Gemini 2.5 Pro). The LLM is prompted not only to find the precise bounding box of each figure but also to extract its title (e.g., "Figure 1") and full caption text.
+*   **`extract_images_llm.py`**: Original Gemini-based figure extraction (legacy, replaced by Mistral OCR). This file is kept for reference but is no longer used in the main pipeline.
 
-    **Output:** For each figure found, the script generates two files in a dedicated output directory (e.g., `extracted_figures_llm_<pdf_name>/`):
-    1.  An image file (e.g., `figure-1.png`) cropped directly from the PDF.
-    2.  A JSON metadata file (e.g., `figure-1.json`) containing the `figure_id`, `page_num`, `title`, `caption`, and the corresponding `png_filename`.
-    
-    This structured output makes the extracted figures easy to use in downstream tasks. The script also includes robust error handling, including retries with exponential backoff for API rate limits and resilient JSON parsing.
+## 🔥 Mistral OCR Integration - Modern PDF Processing
 
-    **Usage:** The script is run from the command line, with the path to the PDF as a required argument.
+The application now uses **Mistral OCR API** for superior PDF text and figure extraction with optimized single-call processing:
 
-    ```bash
-    # Activate your virtual environment
-    source venv/bin/activate
+### **Core Mistral Components:**
 
-    # Run on a specific PDF, saving to the default output directory
-    python3 extract_images_llm.py path/to/your/document.pdf
+*   **`mistral_config.py`**: Configuration file for Mistral OCR settings. Contains API key management (via environment variables), processing options, and feature flags. This centralizes all Mistral-related configuration.
 
-    # Process only the first 5 pages and specify a custom output directory
-    python3 extract_images_llm.py path/to/your/document.pdf --max_pages 5 --output_dir my_extracted_figures
-    ```
+*   **`extract_mistral_pdf.py`**: Low-level Mistral OCR interface script that sends PDFs to the Mistral OCR API and processes the response. Creates structured output with markdown text, extracted images, and JSON metadata for each page.
+
+*   **`processors/mistral_unified_extractor.py`**: **Core extraction engine** - The heart of the Mistral integration. This class processes a PDF once with Mistral OCR and provides methods to extract both text and figures from the cached results. Implements intelligent figure title/caption extraction from markdown context.
+
+*   **`processors/mistral_cache.py`**: Thread-safe caching system that ensures the same PDF is only processed once per session. When both text and figures are needed, the cache prevents duplicate API calls, saving costs and processing time.
+
+*   **`processors/text_extractor.py`**: **Text extraction interface** - Now uses Mistral OCR via the unified extractor. Returns clean markdown text with preserved formatting and structure from the PDF.
+
+*   **`processors/figure_extractor.py`**: **Figure extraction interface** - Now uses Mistral OCR via the unified extractor. Generates the expected `figures_metadata.json` format compatible with the existing slide generation pipeline.
+
+### **Mistral Processing Flow:**
+```
+PDF Input → mistral_unified_extractor.py → Single Mistral OCR API Call
+                                        ↓
+                                   Cached Results
+                                ↙               ↘
+                    text_extractor.py    figure_extractor.py
+                    (markdown text)      (figures + metadata)
+                                ↘               ↙
+                                   Slide Generation
+```
+
+### **Key Advantages:**
+- **Single API Call**: Both text and figures extracted in one request
+- **Superior OCR**: Better accuracy than vision-based extraction
+- **Cost Efficient**: ~50% API cost reduction vs dual extraction
+- **Markdown Output**: Structured text with preserved formatting
+- **Automatic Cleanup**: Temporary files cleaned after processing
 
 *   **`txt2slides.py`**: This is the main orchestration script for the entire pipeline. It performs the following steps:
-    1.  Accepts either plain-text (`.txt`) or PDF (`.pdf`) files as input. For PDFs, it extracts the raw text content.
-    2.  If the input is a PDF, it calls `extract_images_llm.py` to identify and save all figures from the document.
-    3.  Constructs a prompt for the Gemini LLM, instructing it to break the text into a specified number of slides with concise content and detailed audio narration.
-    4.  Calls `pdf2json.py` to interact with the LLM and get the structured slide data.
-    5.  Saves the raw LLM output as a JSON file (`slides/<original_filename>_slides_plan.json`).
-    6.  Calls `json2marp.py` to convert the LLM's JSON into a Marp Markdown file (`slides/deck.md`), potentially embedding the paths to the extracted figures.
-    6.  Generates audio narration files (`slides/audio/slideXX.wav`) for each slide using Sarvam AI's Text-to-Speech (TTS) service.
-    7.  Renders the Marp Markdown file into individual PNG image frames (`slides/frames/deck.00X.png`) using the `marp-cli` tool.
-    8.  Combines the generated PNG frames and audio files into a single MP4 video (`slides/video.mp4`) using `ffmpeg`).
+    1.  Accepts either plain-text (`.txt`) or PDF (`.pdf`) files as input. For PDFs, it uses the Mistral OCR system to extract both text content and figures.
+    2.  Text extraction via `processors/text_extractor.py` (now using Mistral OCR)
+    3.  Figure extraction via `processors/figure_extractor.py` (now using Mistral OCR with shared cache)
+    4.  Constructs a prompt for the Gemini LLM, instructing it to break the text into a specified number of slides with concise content and detailed audio narration.
+    5.  Calls `pdf2json.py` to interact with the LLM and get the structured slide data.
+    6.  Saves the raw LLM output as a JSON file (`slides/<original_filename>_slides_plan.json`).
+    7.  Calls `json2marp.py` to convert the LLM's JSON into a Marp Markdown file (`slides/deck.md`), embedding the extracted figures.
+    8.  Generates audio narration files (`slides/audio/slideXX.wav`) for each slide using Sarvam AI's Text-to-Speech (TTS) service.
+    9.  Renders the Marp Markdown file into individual PNG image frames (`slides/frames/deck.00X.png`) using the `marp-cli` tool.
+    10. Combines the generated PNG frames and audio files into a single MP4 video (`slides/video.mp4`) using `ffmpeg`).
 
 *   **`debug_video.py`**: A standalone utility script for debugging the video creation step. It regenerates the `video.mp4` file from the existing PNG frames in `slides/frames/` and WAV audio files in `slides/audio/`. This is useful for testing changes to the video encoding without re-running the entire LLM and TTS pipeline.
-
-*   **`extract_mistral_pdf.py`**: Sends one or more PDFs to the Mistral OCR API, extracting both the full OCR JSON and ready-to-use Markdown for each page. For each PDF, it creates a folder under `mistral_responses/<paper_name>/` with three subfolders:
-    - `markdown/`: Markdown files per page, with all image links fixed to point to extracted images.
-    - `json/`: Full OCR JSON per page, including all metadata and base64 image blobs.
-    - `images/`: All figures extracted from the OCR JSON, saved as image files (e.g., PNG or JPEG).
-    The Markdown files are ready for direct use in downstream pipelines and will render figures correctly.
-
-    **Usage:**
-    ```bash
-    # Export your Mistral API key (required)
-    export MISTRAL_API_KEY=your_api_key_here
-    # (Or set it in a .env file)
-    
-    # Run extraction (activate venv first)
-    source venv/bin/activate
-    python3 extract_mistral_pdf.py pdf_input/your_paper.pdf --out mistral_responses
-    ```
-    The script supports batch processing of multiple PDFs and optional page ranges (see script help for details).
 
 *   **`requirements.txt`**: Lists all Python libraries required for this project. These can be installed using `pip`.
 
@@ -291,14 +292,16 @@ sudo pacman -S ffmpeg
 
 ### 6. Set API Keys
 
-This project uses API keys for Gemini (via `pdf2json.py`) and Sarvam AI (for TTS). **Never hardcode your API keys in the source code.** Instead, set them as environment variables.
+This project uses API keys for Mistral OCR (for PDF processing), Gemini (for slide generation), and Sarvam AI (for TTS). **Never hardcode your API keys in the source code.** Instead, set them as environment variables.
 
-*   **`GEMINI_API_KEY`**: Your API key for Google Gemini.
+*   **`MISTRAL_API_KEY`**: Your API key for Mistral OCR.
+*   **`GEMINI_API_KEY`**: Your API key for Google Gemini (slide generation).
 *   **`SARVAM_API_KEY`**: Your API key for Sarvam AI.
 
 **Example (Linux/macOS):**
 
 ```bash
+export MISTRAL_API_KEY="YOUR_MISTRAL_API_KEY"
 export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
 export SARVAM_API_KEY="YOUR_SARVAM_API_KEY"
 ```
@@ -306,6 +309,7 @@ export SARVAM_API_KEY="YOUR_SARVAM_API_KEY"
 **Example (Windows Command Prompt):**
 
 ```cmd
+set MISTRAL_API_KEY="YOUR_MISTRAL_API_KEY"
 set GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
 set SARVAM_API_KEY="YOUR_SARVAM_API_KEY"
 ```
@@ -351,6 +355,7 @@ To run the Streamlit UI:
 source venv/bin/activate
 
 # Set required API keys
+export MISTRAL_API_KEY="your-mistral-api-key"
 export GEMINI_API_KEY="your-gemini-api-key"
 export SARVAM_API_KEY="your-sarvam-api-key"
 

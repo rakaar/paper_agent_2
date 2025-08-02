@@ -466,8 +466,23 @@ if st.session_state.processing_started and not st.session_state.processing_compl
 
         # Mark processing as complete
         st.session_state.processing_complete = True
+        
+        # Clean up Mistral cache to free memory and API resources
+        try:
+            from processors.mistral_cache import clear_mistral_cache
+            clear_mistral_cache()
+        except ImportError:
+            pass  # Cache not available
+        
         st.rerun()
     except Exception as e:
+        # Clean up Mistral cache even on error
+        try:
+            from processors.mistral_cache import clear_mistral_cache
+            clear_mistral_cache()
+        except ImportError:
+            pass
+        
         st.error(f"Processing failed: {str(e)}")
         logger.error(f"Processing failed: {str(e)}")
 

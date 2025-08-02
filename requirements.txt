@@ -8,3 +8,6 @@ moviepy
 tqdm
 pyyaml
 streamlit>=1.47.0
+mistralai
+python-dotenv
+tenacity
