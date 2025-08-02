@@ -35,6 +35,8 @@ paper_structured.json
 *.mp4
 debug_marp_png.py
 *.png
+*.md
+!README.md
 *.pdf
 *.json
 !requirements*.json
@@ -49,3 +51,4 @@ debug_marp_png.py
 # Service files and environment variables
 paper-explainer.service
 .env
+*.jpeg

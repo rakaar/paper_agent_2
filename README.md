@@ -197,6 +197,24 @@ To run the Paper Explainer as a persistent background service on a Linux server,
 
 *   **`debug_video.py`**: A standalone utility script for debugging the video creation step. It regenerates the `video.mp4` file from the existing PNG frames in `slides/frames/` and WAV audio files in `slides/audio/`. This is useful for testing changes to the video encoding without re-running the entire LLM and TTS pipeline.
 
+*   **`extract_mistral_pdf.py`**: Sends one or more PDFs to the Mistral OCR API, extracting both the full OCR JSON and ready-to-use Markdown for each page. For each PDF, it creates a folder under `mistral_responses/<paper_name>/` with three subfolders:
+    - `markdown/`: Markdown files per page, with all image links fixed to point to extracted images.
+    - `json/`: Full OCR JSON per page, including all metadata and base64 image blobs.
+    - `images/`: All figures extracted from the OCR JSON, saved as image files (e.g., PNG or JPEG).
+    The Markdown files are ready for direct use in downstream pipelines and will render figures correctly.
+
+    **Usage:**
+    ```bash
+    # Export your Mistral API key (required)
+    export MISTRAL_API_KEY=your_api_key_here
+    # (Or set it in a .env file)
+    
+    # Run extraction (activate venv first)
+    source venv/bin/activate
+    python3 extract_mistral_pdf.py pdf_input/your_paper.pdf --out mistral_responses
+    ```
+    The script supports batch processing of multiple PDFs and optional page ranges (see script help for details).
+
 *   **`requirements.txt`**: Lists all Python libraries required for this project. These can be installed using `pip`.
 
 *   **`.gitignore`**: Configured to ignore temporary files, virtual environments, and all generated output files, ensuring a clean Git repository.
