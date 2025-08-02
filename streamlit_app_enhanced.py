@@ -116,6 +116,9 @@ if "processing_complete" not in st.session_state:
 if "processing_failed" not in st.session_state:
     st.session_state.processing_failed = False
 
+if "error_messages" not in st.session_state:
+    st.session_state.error_messages = []
+
 # Helper functions
 def log_info(message):
     """Log message and update progress details"""
@@ -171,6 +174,14 @@ def extract_figures_with_progress(pdf_path, output_dir):
         
         update_step_status("figure_extraction", "error", "Figure extraction failed")
         update_progress("figure_extraction", detail=f"❌ {display_error}")
+        
+        # Store error in session state for persistent display
+        error_entry = {
+            "step": "Figure Extraction", 
+            "error": display_error,
+            "timestamp": "now"
+        }
+        st.session_state.error_messages.append(error_entry)
         
         # Also show the error in the main UI
         st.error(f"**Figure Extraction Error:**\n\n{display_error}")
@@ -286,6 +297,7 @@ if 'start_button' in locals() and start_button and uploaded_file is not None and
     # Initialize session state properly
     st.session_state.processing_complete = False
     st.session_state.processing_failed = False
+    st.session_state.error_messages = []  # Clear previous errors
     st.session_state.processing_status = {
         "upload": {"status": "complete", "message": f"Uploaded: {uploaded_file.name}"},
         "text_extraction": {"status": "pending", "message": ""},
@@ -340,6 +352,14 @@ if st.session_state.processing_started and not st.session_state.processing_compl
                     display_error = error_msg
                 else:
                     display_error = f"Text extraction failed: {error_msg}"
+                
+                # Store error in session state for persistent display
+                error_entry = {
+                    "step": "Text Extraction",
+                    "error": display_error,
+                    "timestamp": "now"
+                }
+                st.session_state.error_messages.append(error_entry)
                 
                 update_step_status("text_extraction", "error", "Text extraction failed")
                 update_progress("text_extraction", detail=f"❌ {display_error}")
@@ -470,10 +490,31 @@ if st.session_state.processing_started and not st.session_state.processing_compl
 # Display results
 if st.session_state.processing_complete:
     st.markdown("---")
-    st.markdown("## 🎉 Results")
     
-    # Create tabs for different outputs
-    video_tab, slides_tab, figures_tab = st.tabs(["🎬 Video", "📋 Slides", "🖼️ Figures"])
+    # Show errors prominently if any occurred
+    if st.session_state.error_messages:
+        st.markdown("## ❌ Processing Errors")
+        st.error("**Some steps failed during processing. See details below:**")
+        
+        for error in st.session_state.error_messages:
+            with st.expander(f"❌ {error['step']} Error", expanded=True):
+                st.code(error['error'], language=None)
+        
+        st.markdown("---")
+    
+    # Results section
+    if st.session_state.error_messages:
+        st.markdown("## 📋 Partial Results")
+        st.info("Some processing steps completed successfully before the error occurred.")
+    else:
+        st.markdown("## 🎉 Results")
+    
+    # Create tabs for different outputs  
+    if st.session_state.error_messages:
+        video_tab, slides_tab, figures_tab, debug_tab = st.tabs(["🎬 Video", "📋 Slides", "🖼️ Figures", "🐛 Debug"])
+    else:
+        video_tab, slides_tab, figures_tab = st.tabs(["🎬 Video", "📋 Slides", "🖼️ Figures"])
+        debug_tab = None
 
     with video_tab:
         if st.session_state.output_paths.get("video"):
@@ -492,6 +533,32 @@ if st.session_state.processing_complete:
             display_figures(st.session_state.output_paths["figures_metadata"])
         else:
             st.info("No figures were extracted or they are unavailable.")
+    
+    # Debug tab (only shown when there are errors)
+    if debug_tab is not None:
+        with debug_tab:
+            st.markdown("### 🐛 Debug Information")
+            
+            st.markdown("**Processing Status:**")
+            for step, status in st.session_state.processing_status.items():
+                status_icon = "✅" if status["status"] == "complete" else "❌" if status["status"] == "error" else "⏳"
+                st.write(f"{status_icon} {step.replace('_', ' ').title()}: {status['status']} - {status.get('message', '')}")
+            
+            st.markdown("**Session State:**")
+            debug_info = {
+                "processing_started": st.session_state.processing_started,
+                "processing_complete": st.session_state.processing_complete, 
+                "processing_failed": st.session_state.processing_failed,
+                "error_count": len(st.session_state.error_messages),
+                "output_paths": list(st.session_state.output_paths.keys()) if hasattr(st.session_state, 'output_paths') else []
+            }
+            st.json(debug_info)
+            
+            if st.session_state.error_messages:
+                st.markdown("**Full Error Details:**")
+                for i, error in enumerate(st.session_state.error_messages):
+                    st.markdown(f"**Error {i+1}: {error['step']}**")
+                    st.code(error['error'], language=None)
 
 # Footer
 st.markdown("---")
