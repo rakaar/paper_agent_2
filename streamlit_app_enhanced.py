@@ -127,89 +127,51 @@ def update_step_status(step_key, status, message=""):
 
 
 def extract_figures_with_progress(pdf_path, output_dir):
-    """Extract figures with progress tracking"""
-    update_step_status("figure_extraction", "processing", "Starting figure extraction...")
-    update_progress("figure_extraction", detail="Initializing figure extraction")
+    """Extract figures with progress tracking using Mistral OCR"""
+    update_step_status("figure_extraction", "processing", "Starting Mistral OCR figure extraction...")
+    update_progress("figure_extraction", detail="Initializing Mistral OCR extraction")
     
     try:
-        # Create output directory
-        os.makedirs(output_dir, exist_ok=True)
+        # Import the figure extractor
+        from processors.figure_extractor import extract_figures
         
-        # Run extract_images_llm.py with progress tracking
-        cmd = [sys.executable, "extract_images_llm.py", pdf_path, "--output_dir", output_dir]
+        update_progress("figure_extraction", detail="Processing PDF with Mistral OCR...")
         
-        update_progress("figure_extraction", detail=f"Running command: {' '.join(cmd)}")
+        # Use the Mistral-based figure extractor
+        figures_metadata_path = extract_figures(pdf_path, output_dir)
         
-        # Start the process
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            universal_newlines=True
-        )
-        
-        page_count = 0
-        current_page = 0
-        
-        # Read output line by line for progress tracking
-        for line in iter(process.stdout.readline, ''):
-            line = line.strip()
-            if line:
-                update_progress("figure_extraction", detail=line)
-                
-                # Parse progress information
-                if "Converting PDF pages to images" in line:
-                    update_progress("figure_extraction", detail="Converting PDF to images...")
-                elif "Rendering pages:" in line and "%" in line:
-                    # Extract progress from tqdm output
-                    try:
-                        # Look for pattern like "4/4 [00:00<00:00, 4.80it/s]"
-                        if "/" in line:
-                            parts = line.split("/")
-                            if len(parts) >= 2:
-                                current = int(parts[0].split()[-1])
-                                total_part = parts[1].split()[0]
-                                total = int(total_part)
-                                page_count = total
-                                update_progress("figure_extraction", current=current, total=total)
-                    except:
-                        pass
-                elif "Analyzing page_" in line:
-                    current_page += 1
-                    if page_count > 0:
-                        update_progress("figure_extraction", current=current_page, total=page_count)
-                elif "Cropping figures:" in line and "%" in line:
-                    update_progress("figure_extraction", detail="Cropping extracted figures...")
-                elif "Successfully extracted" in line:
-                    update_progress("figure_extraction", detail=line)
-        
-        process.wait()
-        
-        if process.returncode == 0:
-            # Check for metadata file
-            figures_metadata_path = os.path.join(output_dir, "figures_metadata.json")
-            if os.path.exists(figures_metadata_path):
-                # Count figures
-                with open(figures_metadata_path, 'r') as f:
-                    figures_data = json.load(f)
-                figure_count = len(figures_data)
-                
-                update_step_status("figure_extraction", "complete", f"Extracted {figure_count} figures")
-                update_progress("figure_extraction", detail=f"✅ Successfully extracted {figure_count} figures")
-                return figures_metadata_path
-            else:
-                update_step_status("figure_extraction", "complete", "No figures found in PDF")
-                update_progress("figure_extraction", detail="No figures found in the PDF")
-                return None
+        if figures_metadata_path and os.path.exists(figures_metadata_path):
+            # Count figures
+            with open(figures_metadata_path, 'r') as f:
+                figures_data = json.load(f)
+            figure_count = len(figures_data)
+            
+            update_step_status("figure_extraction", "complete", f"Extracted {figure_count} figures")
+            update_progress("figure_extraction", detail=f"✅ Successfully extracted {figure_count} figures")
+            return figures_metadata_path
         else:
-            raise subprocess.CalledProcessError(process.returncode, cmd)
+            update_step_status("figure_extraction", "complete", "No figures found in PDF")
+            update_progress("figure_extraction", detail="No figures found in the PDF")
+            return None
             
     except Exception as e:
-        error_msg = f"Figure extraction failed: {str(e)}"
-        update_step_status("figure_extraction", "error", error_msg)
-        update_progress("figure_extraction", detail=f"❌ {error_msg}")
+        # Display the detailed error message from our improved Mistral extractor
+        error_msg = str(e)
+        
+        # Make the error more readable in the UI
+        if "Mistral OCR extraction failed:" in error_msg:
+            # Already well formatted from our extractor
+            display_error = error_msg
+        else:
+            # Add context for other errors
+            display_error = f"Figure extraction failed: {error_msg}"
+        
+        update_step_status("figure_extraction", "error", "Figure extraction failed")
+        update_progress("figure_extraction", detail=f"❌ {display_error}")
+        
+        # Also show the error in the main UI
+        st.error(f"**Figure Extraction Error:**\n\n{display_error}")
+        
         return None
 
 
@@ -357,15 +319,29 @@ if st.session_state.processing_started and not st.session_state.processing_compl
     try:
         # Step 1: Extract text
         if st.session_state.processing_status["text_extraction"]["status"] == "pending":
-            update_step_status("text_extraction", "processing", "Extracting text from PDF...")
-            update_progress("text_extraction", detail="Starting text extraction")
+            update_step_status("text_extraction", "processing", "Extracting text with Mistral OCR...")
+            update_progress("text_extraction", detail="Starting Mistral OCR text extraction")
             
-            text_content = extract_text_from_pdf(pdf_path)
-            st.session_state.text_content = text_content  # Save to session state
-            char_count = len(text_content)
+            try:
+                text_content = extract_text_from_pdf(pdf_path)
+                st.session_state.text_content = text_content  # Save to session state
+                char_count = len(text_content)
+                
+                update_step_status("text_extraction", "complete", f"Extracted {char_count} characters")
+                update_progress("text_extraction", detail=f"✅ Extracted {char_count} characters")
+            except Exception as e:
+                # Display detailed error from Mistral extractor
+                error_msg = str(e)
+                if "Mistral OCR extraction failed:" in error_msg:
+                    display_error = error_msg
+                else:
+                    display_error = f"Text extraction failed: {error_msg}"
+                
+                update_step_status("text_extraction", "error", "Text extraction failed")
+                update_progress("text_extraction", detail=f"❌ {display_error}")
+                st.error(f"**Text Extraction Error:**\n\n{display_error}")
+                return  # Stop processing if text extraction fails
             
-            update_step_status("text_extraction", "complete", f"Extracted {char_count} characters")
-            update_progress("text_extraction", detail=f"✅ Extracted {char_count} characters")
             st.rerun()
 
         # Step 2: Extract figures
