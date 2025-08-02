@@ -113,6 +113,9 @@ if "processing_started" not in st.session_state:
 if "processing_complete" not in st.session_state:
     st.session_state.processing_complete = False
 
+if "processing_failed" not in st.session_state:
+    st.session_state.processing_failed = False
+
 # Helper functions
 def log_info(message):
     """Log message and update progress details"""
@@ -282,6 +285,7 @@ if 'start_button' in locals() and start_button and uploaded_file is not None and
     st.session_state.processing_started = True
     # Initialize session state properly
     st.session_state.processing_complete = False
+    st.session_state.processing_failed = False
     st.session_state.processing_status = {
         "upload": {"status": "complete", "message": f"Uploaded: {uploaded_file.name}"},
         "text_extraction": {"status": "pending", "message": ""},
@@ -340,19 +344,20 @@ if st.session_state.processing_started and not st.session_state.processing_compl
                 update_step_status("text_extraction", "error", "Text extraction failed")
                 update_progress("text_extraction", detail=f"❌ {display_error}")
                 st.error(f"**Text Extraction Error:**\n\n{display_error}")
-                return  # Stop processing if text extraction fails
+                # Set flag to stop further processing
+                st.session_state.processing_failed = True
             
             st.rerun()
 
-        # Step 2: Extract figures
-        if st.session_state.processing_status["figure_extraction"]["status"] == "pending":
+        # Step 2: Extract figures (only if text extraction succeeded)
+        if not st.session_state.processing_failed and st.session_state.processing_status["figure_extraction"]["status"] == "pending":
             figures_metadata_path = extract_figures_with_progress(pdf_path, figures_dir)
             if figures_metadata_path:
                 st.session_state.output_paths["figures_metadata"] = figures_metadata_path
             st.rerun()
 
-        # Step 3: Generate slide content
-        if st.session_state.processing_status["llm_processing"]["status"] == "pending":
+        # Step 3: Generate slide content (only if previous steps succeeded)
+        if not st.session_state.processing_failed and st.session_state.processing_status["llm_processing"]["status"] == "pending":
             update_step_status("llm_processing", "processing", "Generating slide content with LLM...")
             update_progress("llm_processing", detail="Sending content to LLM for processing")
             
@@ -375,8 +380,8 @@ if st.session_state.processing_started and not st.session_state.processing_compl
             update_progress("llm_processing", detail=f"✅ Generated content for {slide_count} slides")
             st.rerun()
 
-        # Step 4: Create Markdown
-        if st.session_state.processing_status["markdown_generation"]["status"] == "pending":
+        # Step 4: Create Markdown (only if previous steps succeeded)
+        if not st.session_state.processing_failed and st.session_state.processing_status["markdown_generation"]["status"] == "pending":
             update_step_status("markdown_generation", "processing", "Creating Marp slides...")
             update_progress("markdown_generation", detail="Converting JSON to Marp Markdown format")
             
@@ -390,7 +395,7 @@ if st.session_state.processing_started and not st.session_state.processing_compl
             update_progress("markdown_generation", detail="✅ Created Marp slides")
             st.rerun()
 
-        if not slides_only:
+        if not slides_only and not st.session_state.processing_failed:
             # Step 5: Generate audio
             if st.session_state.processing_status["audio_generation"]["status"] == "pending":
                 update_step_status("audio_generation", "processing", "Starting audio generation...")
@@ -411,7 +416,7 @@ if st.session_state.processing_started and not st.session_state.processing_compl
                 st.rerun()
             
             # Step 6: Render slides
-            if st.session_state.processing_status["slide_rendering"]["status"] == "pending":
+            if not st.session_state.processing_failed and st.session_state.processing_status["slide_rendering"]["status"] == "pending":
                 update_step_status("slide_rendering", "processing", "Rendering slide images...")
                 update_progress("slide_rendering", detail="Converting slides to PNG images")
                 
@@ -427,7 +432,7 @@ if st.session_state.processing_started and not st.session_state.processing_compl
                 st.rerun()
 
             # Step 7: Create video
-            if st.session_state.processing_status["video_creation"]["status"] == "pending":
+            if not st.session_state.processing_failed and st.session_state.processing_status["video_creation"]["status"] == "pending":
                 audio_dir_path = st.session_state.output_paths.get("audio_dir")
                 frames_dir_path = st.session_state.output_paths.get("frames_dir")
                 if audio_dir_path and frames_dir_path:
@@ -440,7 +445,7 @@ if st.session_state.processing_started and not st.session_state.processing_compl
                     update_step_status("video_creation", "skipped", "Skipped due to missing audio/slides")
                 st.rerun()
 
-        # Mark processing as complete
+        # Mark processing as complete (even if some steps failed)
         st.session_state.processing_complete = True
         
         # Clean up Mistral cache to free memory and API resources
