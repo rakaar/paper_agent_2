@@ -440,15 +440,38 @@ if st.session_state.processing_started and not st.session_state.processing_compl
                 update_step_status("slide_rendering", "processing", "Rendering slide images...")
                 update_progress("slide_rendering", detail="Converting slides to PNG images")
                 
-                frames_dir_path = render_slides(st.session_state.output_paths["deck_md"], frames_dir)
-                if frames_dir_path:
-                    st.session_state.output_paths["frames_dir"] = frames_dir_path
-                    png_files = list(Path(frames_dir_path).glob("deck.*.png"))
-                    update_step_status("slide_rendering", "complete", f"Rendered {len(png_files)} slides")
-                    update_progress("slide_rendering", detail=f"✅ Rendered {len(png_files)} slides")
-                else:
+                try:
+                    frames_dir_path = render_slides(st.session_state.output_paths["deck_md"], frames_dir)
+                    if frames_dir_path:
+                        st.session_state.output_paths["frames_dir"] = frames_dir_path
+                        png_files = list(Path(frames_dir_path).glob("deck.*.png"))
+                        update_step_status("slide_rendering", "complete", f"Rendered {len(png_files)} slides")
+                        update_progress("slide_rendering", detail=f"✅ Rendered {len(png_files)} slides")
+                    else:
+                        update_step_status("slide_rendering", "error", "Slide rendering failed")
+                        update_progress("slide_rendering", detail="❌ Slide rendering failed")
+                except Exception as e:
+                    # Display detailed error from Marp renderer
+                    error_msg = str(e)
+                    if "Marp slide rendering failed:" in error_msg:
+                        display_error = error_msg
+                    else:
+                        display_error = f"Slide rendering failed: {error_msg}"
+                    
+                    # Store error in session state for persistent display
+                    error_entry = {
+                        "step": "Slide Rendering",
+                        "error": display_error,
+                        "timestamp": "now"
+                    }
+                    st.session_state.error_messages.append(error_entry)
+                    
                     update_step_status("slide_rendering", "error", "Slide rendering failed")
-                    update_progress("slide_rendering", detail="❌ Slide rendering failed")
+                    update_progress("slide_rendering", detail=f"❌ {display_error}")
+                    st.error(f"**Slide Rendering Error:**\n\n{display_error}")
+                    # Set flag to stop further processing
+                    st.session_state.processing_failed = True
+                
                 st.rerun()
 
             # Step 7: Create video
