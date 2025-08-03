@@ -44,7 +44,7 @@ def fix_json_newlines(json_string: str) -> str:
     
     return re.sub(string_literal_regex, escape_newlines_in_match, json_string, flags=re.DOTALL)
 
-def generate_slides_content(text, figures_path=None, max_slides=10, original_filename="document"):
+def generate_slides_content(text, figures_path=None, max_slides=10, output_dir=".", original_filename="document"):
     """
     Generate slide content using Gemini API based on extracted text
     
@@ -52,17 +52,17 @@ def generate_slides_content(text, figures_path=None, max_slides=10, original_fil
         text (str): Extracted text from the PDF
         figures_path (str, optional): Path to figures metadata JSON
         max_slides (int, optional): Maximum number of slides to generate
+        output_dir (str, optional): Directory to save the output JSON file
         original_filename (str, optional): Original filename (without extension) for naming output files
         
     Returns:
         str: Path to the generated slides JSON file
     """
-    # Create output directory if it doesn't exist
-    output_dir = Path("slides")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Use the original filename for consistent naming
-    base_output_filename = f"{original_filename}_slides_plan"
+    # Define output path using the provided output_dir
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+    output_filename = f"{original_filename}_slides_plan.json"
+    output_path = output_dir_path / output_filename
     
     # Prepare the figures prompt injection if figures are available
     figures_prompt_injection = ""
