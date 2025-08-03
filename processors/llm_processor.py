@@ -133,11 +133,10 @@ Remember to include the figures in your response where appropriate."""
         fixed_llm_response = fix_json_newlines(llm_response_str)
         slides_data = json.loads(fixed_llm_response)
         
-        # Save the slides data to a JSON file
-        json_output_path = output_dir / f"{base_output_filename}.json"
-        with open(json_output_path, "w", encoding="utf-8") as f:
+        # Save the slides data to the final JSON file
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(slides_data, f, indent=2)
             
-        return str(json_output_path)
+        return str(output_path)
     except Exception as e:
         raise Exception(f"Error generating slide content: {str(e)}")
