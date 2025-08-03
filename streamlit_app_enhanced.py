@@ -216,16 +216,15 @@ def create_video_with_progress(frames_dir, audio_dir, output_path):
                 current_step += 1
             update_progress("video_creation", current=current_step, detail=step_name)
             
-            # Throttle rerun to avoid losing subprocess handle
-            if time.time() - last_rerun_time > 2: # Rerun every 2 seconds
-                last_rerun_time = time.time()
-                st.rerun()
+            # No rerun here to allow FFmpeg to finish
+            pass
 
         video_path = create_video(frames_dir, audio_dir, output_path, progress_callback)
         
         if video_path and Path(video_path).exists():
             update_step_status("video_creation", "complete", "Video created successfully")
             update_progress("video_creation", detail="✅ Video creation completed")
+            st.rerun() # UI refresh happens only once, with the final state
             return video_path
         else:
             # The error is already logged inside create_video, just need to ensure the status is correct
