@@ -45,7 +45,7 @@ def generate_single_audio(text, output_path):
         print(f"Error generating audio: {str(e)}")
         return False
 
-def generate_audio(slides_json_path):
+def generate_audio(slides_json_path, output_dir):
     """
     Generate audio files for each slide using Sarvam AI TTS
     
@@ -60,8 +60,8 @@ def generate_audio(slides_json_path):
     if not SARVAM_API_KEY:
         raise ValueError("SARVAM_API_KEY environment variable not set")
     
-    # Create output directory for audio files
-    audio_dir = Path("slides") / "audio"
+    # Use the provided output directory
+    audio_dir = Path(output_dir)
     audio_dir.mkdir(parents=True, exist_ok=True)
     
     try:

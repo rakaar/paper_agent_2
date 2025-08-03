@@ -196,8 +196,9 @@ def create_video_with_progress(frames_dir, audio_dir, output_path):
         st.session_state.output_paths["video"] = video_path
         
         if video_path and Path(video_path).exists():
+            # Final progress update to ensure it reaches 100%
+            update_progress("video_creation", current=total_steps, total=total_steps, detail="✅ Video creation completed")
             update_step_status("video_creation", "complete", "Video created successfully")
-            update_progress("video_creation", detail="✅ Video creation completed")
             st.rerun() # UI refresh happens only once, with the final state
             return video_path
         else:
@@ -246,19 +247,11 @@ st.markdown("This app converts academic papers (PDFs) into concise, narrated vid
 with st.sidebar:
     st.header("⚙️ Settings")
     
-    # API Keys section
-    with st.expander("🔑 API Keys", expanded=False):
-        gemini_key = st.text_input("Gemini API Key", type="password", help="Required for LLM processing")
-        sarvam_key = st.text_input("Sarvam API Key", type="password", help="Required for audio generation")
-        
-        if gemini_key:
-            os.environ["GEMINI_API_KEY"] = gemini_key
-        if sarvam_key:
-            os.environ["SARVAM_API_KEY"] = sarvam_key
+
     
     # Processing options
     with st.expander("🔧 Processing Options", expanded=False):
-        max_slides = st.number_input("Max slides", min_value=2, max_value=20, value=10)
+        max_slides = st.number_input("Max slides", min_value=2, max_value=20, value=2)
         slides_only = st.checkbox("Generate slides only (skip audio/video)", value=False)
 
 # File upload
@@ -345,143 +338,77 @@ if st.session_state.processing_started and not st.session_state.processing_compl
     try:
         # Step 1: Extract text
         if st.session_state.processing_status["text_extraction"]["status"] == "pending":
-            update_step_status("text_extraction", "processing", "Extracting text with Mistral OCR...")
-            update_progress("text_extraction", detail="Starting Mistral OCR text extraction")
-            
-            try:
-                text_content = extract_text_from_pdf(pdf_path)
-                st.session_state.text_content = text_content  # Save to session state
-                char_count = len(text_content)
-                
-                update_step_status("text_extraction", "complete", f"Extracted {char_count} characters")
-                update_progress("text_extraction", detail=f"✅ Extracted {char_count} characters")
-            except Exception as e:
-                # Display detailed error from Mistral extractor
-                error_msg = str(e)
-                if "Mistral OCR extraction failed:" in error_msg:
-                    display_error = error_msg
-                else:
-                    display_error = f"Text extraction failed: {error_msg}"
-                
-                # Store error in session state for persistent display
-                error_entry = {
-                    "step": "Text Extraction",
-                    "error": display_error,
-                    "timestamp": "now"
-                }
-                st.session_state.error_messages.append(error_entry)
-                
-                update_step_status("text_extraction", "error", "Text extraction failed")
-                update_progress("text_extraction", detail=f"❌ {display_error}")
-                st.error(f"**Text Extraction Error:**\n\n{display_error}")
-                # Set flag to stop further processing
-                st.session_state.processing_failed = True
-            
+            update_step_status("text_extraction", "processing", "Extracting text...")
+            text_content = extract_text_from_pdf(pdf_path)
+            st.session_state.text_content = text_content
+            update_step_status("text_extraction", "complete", f"Extracted {len(text_content)} characters")
             st.rerun()
 
-        # Step 2: Extract figures (only if text extraction succeeded)
-        if not st.session_state.processing_failed and st.session_state.processing_status["figure_extraction"]["status"] == "pending":
+        # Step 2: Extract figures
+        if st.session_state.processing_status["figure_extraction"]["status"] == "pending":
             figures_metadata_path = extract_figures_with_progress(pdf_path, figures_dir)
             if figures_metadata_path:
                 st.session_state.output_paths["figures_metadata"] = figures_metadata_path
             st.rerun()
 
-        # Step 3: Generate slide content (only if previous steps succeeded)
-        if not st.session_state.processing_failed and st.session_state.processing_status["llm_processing"]["status"] == "pending":
-            update_step_status("llm_processing", "processing", "Generating slide content with LLM...")
-            update_progress("llm_processing", detail="Sending content to LLM for processing")
-            
-            # Get original filename without extension
-            original_filename = Path(uploaded_file.name).stem if uploaded_file else "document"
-            
+        # Step 3: Generate slide content
+        if st.session_state.processing_status["llm_processing"]["status"] == "pending":
+            update_step_status("llm_processing", "processing", "Generating slide content...")
+            original_filename = Path(uploaded_file.name).stem
             slides_json_path = generate_slides_content(
-                st.session_state.text_content, 
-                st.session_state.output_paths.get("figures_metadata"), 
+                st.session_state.text_content,
+                st.session_state.output_paths.get("figures_metadata"),
                 max_slides=max_slides,
+                output_dir=slides_dir,
                 original_filename=original_filename
             )
             st.session_state.output_paths["slides_json"] = slides_json_path
-            
-            with open(slides_json_path, 'r', encoding='utf-8') as f:
-                slides_data = json.load(f)
-            
-            slide_count = len(slides_data)
-            update_step_status("llm_processing", "complete", f"Generated {slide_count} slides")
-            update_progress("llm_processing", detail=f"✅ Generated content for {slide_count} slides")
+            update_step_status("llm_processing", "complete", "Generated slide content")
             st.rerun()
 
-        # Step 4: Create Markdown (only if previous steps succeeded)
-        if not st.session_state.processing_failed and st.session_state.processing_status["markdown_generation"]["status"] == "pending":
+        # Step 4: Create Marp slides
+        if st.session_state.processing_status["markdown_generation"]["status"] == "pending":
             update_step_status("markdown_generation", "processing", "Creating Marp slides...")
-            update_progress("markdown_generation", detail="Converting JSON to Marp Markdown format")
-            
             deck_path = convert_to_marp(
                 st.session_state.output_paths["slides_json"],
-                st.session_state.output_paths.get("figures_metadata")
+                os.path.join(slides_dir, "deck.md")
             )
             st.session_state.output_paths["deck_md"] = deck_path
-            
-            update_step_status("markdown_generation", "complete", "Marp slides created")
-            update_progress("markdown_generation", detail="✅ Created Marp slides")
+            update_step_status("markdown_generation", "complete", "Created Marp slides")
             st.rerun()
 
-        if not slides_only and not st.session_state.processing_failed:
+        # Conditional steps for audio/video
+        if not slides_only:
             # Step 5: Generate audio
             if st.session_state.processing_status["audio_generation"]["status"] == "pending":
-                update_step_status("audio_generation", "processing", "Starting audio generation...")
-                update_progress("audio_generation", detail="Generating audio files using Sarvam AI")
-                
-                try:
-                    audio_dir_path = generate_audio(st.session_state.output_paths["slides_json"])
-                    if audio_dir_path:
-                        st.session_state.output_paths["audio_dir"] = audio_dir_path
-                        audio_files = list(Path(audio_dir_path).glob("*.wav"))
-                        update_step_status("audio_generation", "complete", f"Generated {len(audio_files)} audio files")
-                        update_progress("audio_generation", detail=f"✅ Generated {len(audio_files)} audio files")
-                    else:
-                        update_step_status("audio_generation", "error", "Audio generation failed")
-                except Exception as e:
-                    update_step_status("audio_generation", "error", f"Audio generation failed: {str(e)}")
-                    update_progress("audio_generation", detail=f"❌ Audio generation error: {str(e)}")
+                update_step_status("audio_generation", "processing", "Generating audio...")
+                generated_audio_dir = generate_audio(st.session_state.output_paths["slides_json"], audio_dir)
+                st.session_state.output_paths["audio_dir"] = generated_audio_dir
+                num_files = len(os.listdir(generated_audio_dir)) if generated_audio_dir else 0
+                update_step_status("audio_generation", "complete", f"Generated {num_files} audio files")
                 st.rerun()
-            
-            # Step 6: Render slides
-            if not st.session_state.processing_failed and st.session_state.processing_status["slide_rendering"]["status"] == "pending":
-                update_step_status("slide_rendering", "processing", "Rendering slide images...")
+
+            # Step 6: Render slides to images
+            if st.session_state.processing_status["slide_rendering"]["status"] == "pending":
+                update_step_status("slide_rendering", "processing", "Rendering slides...")
                 update_progress("slide_rendering", detail="Converting slides to PNG images")
-                
                 try:
-                    frames_dir_path = render_slides(st.session_state.output_paths["deck_md"], frames_dir)
-                    if frames_dir_path:
-                        st.session_state.output_paths["frames_dir"] = frames_dir_path
-                        png_files = list(Path(frames_dir_path).glob("deck.*.png"))
-                        update_step_status("slide_rendering", "complete", f"Rendered {len(png_files)} slides")
-                        update_progress("slide_rendering", detail=f"✅ Rendered {len(png_files)} slides")
-                    else:
-                        update_step_status("slide_rendering", "error", "Slide rendering failed")
-                        update_progress("slide_rendering", detail="❌ Slide rendering failed")
+                    render_slides(st.session_state.output_paths["deck_md"], frames_dir)
+                    num_frames = len(os.listdir(frames_dir))
+                    update_step_status("slide_rendering", "complete", f"Rendered {num_frames} slides")
+                    update_progress("slide_rendering", detail=f"✅ Rendered {num_frames} slides to images")
                 except Exception as e:
-                    # Display detailed error from Marp renderer
-                    error_msg = str(e)
-                    if "Marp slide rendering failed:" in error_msg:
-                        display_error = error_msg
-                    else:
-                        display_error = f"Slide rendering failed: {error_msg}"
-                    
-                    # Store error in session state for persistent display
+                    display_error = f"Slide rendering failed: {str(e)}"
                     error_entry = {
                         "step": "Slide Rendering",
                         "error": display_error,
                         "timestamp": "now"
                     }
                     st.session_state.error_messages.append(error_entry)
-                    
                     update_step_status("slide_rendering", "error", "Slide rendering failed")
                     update_progress("slide_rendering", detail=f"❌ {display_error}")
                     st.error(f"**Slide Rendering Error:**\n\n{display_error}")
-                    # Set flag to stop further processing
                     st.session_state.processing_failed = True
-                
                 st.rerun()
 
             # Step 7: Create video
