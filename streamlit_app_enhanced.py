@@ -371,7 +371,7 @@ if st.session_state.processing_started and not st.session_state.processing_compl
             update_step_status("markdown_generation", "processing", "Creating Marp slides...")
             deck_path = convert_to_marp(
                 st.session_state.output_paths["slides_json"],
-                os.path.join(slides_dir, "deck.md")
+                st.session_state.output_paths.get("figures_metadata")
             )
             st.session_state.output_paths["deck_md"] = deck_path
             update_step_status("markdown_generation", "complete", "Created Marp slides")
