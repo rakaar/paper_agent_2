@@ -212,6 +212,7 @@ def create_video(frames_dir, audio_dir, output_path=None, progress_callback=None
 
     except Exception as e:
         update_progress(f"Error creating video: {str(e)}")
-        return None
+        # Re-raise the exception so the caller can handle it and display a detailed error
+        raise e
     finally:
         shutil.rmtree(temp_dir)
