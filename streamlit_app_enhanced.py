@@ -172,7 +172,8 @@ def create_video_with_progress(frames_dir, audio_dir, output_path):
         png_files = sorted(Path(frames_dir).glob("deck.*.png"))
         audio_files = sorted(Path(audio_dir).glob("*.wav"))
         
-        total_steps = len(png_files) + 2  # clips + preprocessing + concatenation
+        # audio pre-processing (1 per file) + clip creation (1 per file) + final concatenation (1)
+        total_steps = len(png_files) + len(audio_files) + 1
         current_step = 0
         
         update_progress("video_creation", total=total_steps, current=current_step)
@@ -192,6 +193,7 @@ def create_video_with_progress(frames_dir, audio_dir, output_path):
             pass
 
         video_path = create_video(frames_dir, audio_dir, output_path, progress_callback)
+        st.session_state.output_paths["video"] = video_path
         
         if video_path and Path(video_path).exists():
             update_step_status("video_creation", "complete", "Video created successfully")
