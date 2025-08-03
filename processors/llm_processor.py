@@ -115,30 +115,10 @@ def generate_slides_content(text, figures_path=None, max_slides=10, output_dir="
                 figures_list_str += f"- Figure {i+1}:\n  - Title: {title}\n  - Caption: {caption}\n  - Markdown Path: {path}\n"
 
             if figures_list_str:
-                figures_prompt_injection = f"""\n\n--- CRITICAL: FIGURE EMBEDDING REQUIREMENT ---
-MANDATORY: You MUST include figures in your slides! This is absolutely required.
+                figures_prompt_injection = f"""\n\n--- AVAILABLE FIGURES ---
+You have been provided with a list of figures. Where relevant, you MUST embed these figures into the slide content using their provided Markdown paths (e.g., `![{title}]({path})`).
 
-For EVERY slide you create, you MUST check if any of these figures are relevant and include them using EXACT markdown syntax.
-
-FIGURE EMBEDDING RULES:
-1. Use EXACT syntax: ![Figure Title](path) - no variations allowed
-2. Include at least 1-2 figures per slide when relevant
-3. Place figures after bullet points or in the content section
-4. DO NOT create slides without figures if relevant figures exist
-
-AVAILABLE FIGURES:
 {figures_list_str}
-
-EXAMPLE of correct figure embedding in slide content:
-```
-## Key Findings
-- Important discovery about X
-- Significant result Y
-
-![Figure 1 Title](../figures/figure-1.png)
-```
-
-REMEMBER: You will be penalized if you create slides without including relevant figures!
 """
         except Exception as e:
             print(f"Warning: Could not process figures metadata: {e}")
@@ -182,7 +162,7 @@ Start slide numbering from {slide_counter}.
 
 - "slide number": An integer for the slide order.
 - "title": A concise title for the slide.
-- "content": Keep this extremely minimal - 3-4 bullets or brief paragraph. IMPORTANT: You MUST include relevant figures using ![title](path) syntax in this content field.
+- "content": Keep this extremely minimal - 3-4 bullets or brief paragraph. This is for on-screen text only.
 - "audio": This should contain the full, detailed narration for the slide, suitable for text-to-speech. Maximize information transfer here.
 
 {figures_prompt_injection}
@@ -191,9 +171,6 @@ Start slide numbering from {slide_counter}.
 {chunk}
 
 --- END OF TEXT CHUNK ---
-
-FINAL REMINDER: Every slide's "content" field must include relevant figures using ![Figure Title](path) markdown syntax. Do not skip this step!
-
 Return only the JSON object with the "slides" array."""
         
         # Compact whitespace in prompts to save tokens

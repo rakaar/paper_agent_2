@@ -56,11 +56,31 @@ def call_ollama_llm(system_prompt: str, user_prompt: str) -> list:
             messages=[
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_prompt},
-            ],
-            format='json'
+            ]
+            # Removed format='json' to preserve markdown syntax in content
         )
         response_content = response['message']['content']
-        parsed_json = json.loads(response_content)
+        
+        # Extract JSON from the raw response - look for JSON block
+        import re
+        
+        # Try to find JSON object in the response
+        json_match = re.search(r'\{.*\}', response_content, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(0)
+        else:
+            # Fallback: assume entire response is JSON
+            json_str = response_content.strip()
+        
+        # Clean up common issues in raw model output
+        json_str = json_str.strip()
+        if json_str.startswith('```json'):
+            json_str = json_str[7:]
+        if json_str.endswith('```'):
+            json_str = json_str[:-3]
+        json_str = json_str.strip()
+        
+        parsed_json = json.loads(json_str)
 
         # Check if the response is a dictionary containing the 'slides' key
         if isinstance(parsed_json, dict) and 'slides' in parsed_json and isinstance(parsed_json['slides'], list):
@@ -73,6 +93,10 @@ def call_ollama_llm(system_prompt: str, user_prompt: str) -> list:
             print(f"Response content: {parsed_json}")
             return []
 
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON from Ollama response: {e}")
+        print(f"Raw response: {response_content[:500]}...")
+        return []
     except Exception as e:
         print(f"Error calling Ollama or processing its response: {e}")
         return []
