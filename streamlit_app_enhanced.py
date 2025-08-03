@@ -393,7 +393,7 @@ if st.session_state.processing_started and not st.session_state.processing_compl
                 update_step_status("slide_rendering", "processing", "Rendering slides...")
                 update_progress("slide_rendering", detail="Converting slides to PNG images")
                 try:
-                    rendered_frames_dir = render_slides(st.session_state.output_paths["deck_md"], frames_dir, progress_callback=update_progress_from_renderer)
+                    rendered_frames_dir = render_slides(st.session_state.output_paths["deck_md"], frames_dir)
                     st.session_state.output_paths["frames_dir"] = rendered_frames_dir
                     num_frames = len(os.listdir(frames_dir))
                     update_step_status("slide_rendering", "complete", f"Rendered {num_frames} slides")
