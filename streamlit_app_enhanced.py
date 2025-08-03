@@ -205,23 +205,34 @@ def create_video_with_progress(frames_dir, audio_dir, output_path):
         
         update_progress("video_creation", total=total_steps, current=current_step)
         
-        # Call the video creation function with progress callback
+        # Throttled progress callback
+        last_rerun_time = time.time()
+        
         def progress_callback(step_name, current=None, total=None):
-            nonlocal current_step
+            nonlocal current_step, last_rerun_time
             if current is not None:
                 current_step = current
             else:
                 current_step += 1
             update_progress("video_creation", current=current_step, detail=step_name)
+            
+            # Throttle rerun to avoid losing subprocess handle
+            if time.time() - last_rerun_time > 2: # Rerun every 2 seconds
+                last_rerun_time = time.time()
+                st.experimental_rerun()
+
+        video_path = create_video(frames_dir, audio_dir, output_path, progress_callback)
         
-        success = create_video(frames_dir, audio_dir, output_path, progress_callback)
-        
-        if success:
+        if video_path and Path(video_path).exists():
             update_step_status("video_creation", "complete", "Video created successfully")
             update_progress("video_creation", detail="✅ Video creation completed")
-            return output_path
+            return video_path
         else:
-            raise Exception("Video creation failed")
+            # The error is already logged inside create_video, just need to ensure the status is correct
+            if st.session_state.processing_status["video_creation"]["status"] != 'error':
+                 raise Exception("Video creation failed for an unknown reason.")
+            return None
+            
             
     except Exception as e:
         # Display the detailed error message from our improved ffmpeg handling
@@ -511,19 +522,33 @@ if st.session_state.processing_started and not st.session_state.processing_compl
                 else:
                     # If audio/slides were skipped or failed, mark video as skipped
                     update_step_status("video_creation", "skipped", "Skipped due to missing audio/slides")
-                st.rerun()
 
-        # Mark processing as complete (even if some steps failed)
-        st.session_state.processing_complete = True
-        
-        # Clean up Mistral cache to free memory and API resources
-        try:
-            from processors.mistral_cache import clear_mistral_cache
-            clear_mistral_cache()
-        except ImportError:
-            pass  # Cache not available
-        
-        st.rerun()
+        # Check if all steps are complete
+        all_done = all(
+            st.session_state.processing_status[s]["status"] in ("complete", "skipped")
+            for s in ("text_extraction", "figure_extraction", "llm_processing",
+                      "markdown_generation", "audio_generation",
+                      "slide_rendering", "video_creation")
+        )
+
+        if all_done and not st.session_state.processing_complete:
+            st.session_state.processing_complete = True
+            
+            # Clean up temp directory
+            try:
+                shutil.rmtree(st.session_state.temp_dir)
+            except Exception as e:
+                logger.warning(f"Could not clean up temp directory: {e}")
+                
+            # Clean up Mistral cache
+            try:
+                from processors.mistral_cache import clear_mistral_cache
+                clear_mistral_cache()
+            except ImportError:
+                pass  # Cache not available
+
+            # Final rerun to display results
+            st.rerun()
     except Exception as e:
         # Clean up Mistral cache even on error
         try:
