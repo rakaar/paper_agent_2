@@ -30,6 +30,29 @@ Key capabilities (2025-08):
 
 *   **Marp CLI Browser Dependency**: The `txt2slides.py` script uses `npx marp` to render Markdown slides into PNG frames. Marp requires a headless browser (like Chromium) to do this. In some environments, a suitable browser may not be installed or detected, causing the script to fail with a `No suitable browser found` error. Future work should involve explicitly providing the path to a browser executable to the `marp` command (e.g., via the `--chrome-path` flag) or ensuring a browser is installed as part of the environment setup.
 
+## 🚀 Gemma3n Hackathon Optimizations (August 2025)
+
+### Smart Figure Embedding System
+The system now includes intelligent fallback mechanisms specifically designed for **Gemma3n hackathon compatibility**:
+
+* **✅ Prompt Engineering**: Strong prompts with emojis and warnings to encourage Gemma3n to include figures
+* **✅ Smart Fallback Detection**: Automatically detects when Gemma3n creates fake figure paths (e.g., `https://www.example.com/figures/figure-1.png`) instead of using real paths
+* **✅ Intelligent Figure Matching**: When Gemma3n fails to include valid figures, the system uses text similarity algorithms to automatically match figures to slides based on content overlap
+* **✅ Text Similarity Scoring**: Uses Jaccard similarity and stop word removal to find the best figure-slide matches
+* **✅ Path Validation**: Validates all figure paths against actual extracted files and removes invalid references
+
+### Content Optimization
+* **Bullet Point Limit**: Configurable word limit per bullet point (currently set to 30 words for optimal visual presentation)
+* **Automatic Text Chunking**: Handles large PDFs by splitting into chunks suitable for Gemma3n's context length
+* **Debug Logging**: Comprehensive logging system tracks the entire figure embedding pipeline for troubleshooting
+
+### Usage for Hackathons
+The system is specifically tested and optimized for **Gemma3n:e4b** model running locally via Ollama. Key features:
+- Works reliably with local Gemma3n without requiring cloud APIs
+- Automatically handles Gemma3n's tendency to ignore figure embedding instructions
+- Provides detailed debug output to understand which figures are being matched to which slides
+- Maintains high-quality slide generation even when LLM doesn't follow figure instructions perfectly
+
 
 ## Directory Layout
 
@@ -333,7 +356,7 @@ The `processors/` directory contains modular components for each step of the pip
 
 * **`text_extractor.py`**: Extracts text from PDF documents using PyMuPDF.
 * **`figure_extractor.py`**: Handles figure extraction by calling the existing `extract_images_llm.py` script.
-* **`llm_processor.py`**: Generates slide content by interfacing with local Gemma3n LLM via Ollama. Features automatic text chunking for handling large documents within context limits.
+* **`llm_processor.py`**: Generates slide content by interfacing with local Gemma3n LLM via Ollama. Features automatic text chunking for handling large documents within context limits, intelligent figure matching with text similarity scoring, and smart fallback detection for invalid figure paths.
 * **`marp_converter.py`**: Converts JSON slide content to Marp Markdown using `json2marp.py`.
 * **`audio_generator.py`**: Creates audio narration using Sarvam AI TTS API.
 * **`slide_renderer.py`**: Renders Marp markdown as PNG images using marp-cli.
