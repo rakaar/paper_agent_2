@@ -37,35 +37,7 @@ from utils.ui_components import (
 )
 from utils.file_helpers import save_uploaded_file
 
-def cleanup_old_files():
-    """Remove old generated files before starting new processing"""
-    slides_dir = Path("slides")
-    if slides_dir.exists():
-        # Remove common generated files
-        files_to_remove = [
-            "deck.md",
-            "video.mp4",
-        ]
-        
-        for file_name in files_to_remove:
-            file_path = slides_dir / file_name
-            if file_path.exists():
-                file_path.unlink()
-                print(f"Removed old file: {file_path}")
-        
-        # Remove directories
-        dirs_to_remove = ["audio", "frames"]
-        for dir_name in dirs_to_remove:
-            dir_path = slides_dir / dir_name
-            if dir_path.exists():
-                import shutil
-                shutil.rmtree(dir_path)
-                print(f"Removed old directory: {dir_path}")
-        
-        # Remove any slides plan JSON files
-        for json_file in slides_dir.glob("*_slides_plan.json"):
-            json_file.unlink()
-            print(f"Removed old JSON file: {json_file}")
+
 
 # Page config
 st.set_page_config(
@@ -345,8 +317,7 @@ if 'start_button' in locals() and start_button and uploaded_file is not None and
     }
     st.session_state.progress_details = {}
     
-    # Clean up old files before starting
-    cleanup_old_files()
+    # Session-specific temp directory handles cleanup, so no manual cleanup is needed.
     
     # Rerun to show progress immediately
     st.rerun()
@@ -357,15 +328,17 @@ if st.session_state.processing_started and not st.session_state.processing_compl
     pdf_path = save_uploaded_file(uploaded_file, st.session_state.temp_dir)
     st.session_state.output_paths["pdf"] = pdf_path
     
-    # Create output directories
-    import shutil
-    slides_dir = "slides"
-    # Directory cleanup is handled by cleanup_old_files() at the start
-    figures_dir = os.path.join(st.session_state.temp_dir, "figures")
+    # Create output directories within the session's temporary directory
+    session_dir = st.session_state.temp_dir
+    figures_dir = os.path.join(session_dir, "figures")
+    slides_dir = os.path.join(session_dir, "slides") # All slide assets in one place
     audio_dir = os.path.join(slides_dir, "audio")
     frames_dir = os.path.join(slides_dir, "frames")
     
-    os.makedirs(slides_dir, exist_ok=True)
+    os.makedirs(figures_dir, exist_ok=True)
+    os.makedirs(slides_dir, exist_ok=True) # Ensure the parent slides dir is created
+    os.makedirs(audio_dir, exist_ok=True)
+    os.makedirs(frames_dir, exist_ok=True)
     
     try:
         # Step 1: Extract text
