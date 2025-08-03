@@ -219,7 +219,7 @@ def create_video_with_progress(frames_dir, audio_dir, output_path):
             # Throttle rerun to avoid losing subprocess handle
             if time.time() - last_rerun_time > 2: # Rerun every 2 seconds
                 last_rerun_time = time.time()
-                st.experimental_rerun()
+                st.rerun()
 
         video_path = create_video(frames_dir, audio_dir, output_path, progress_callback)
         
