@@ -41,7 +41,7 @@ from utils.file_helpers import save_uploaded_file
 
 # Page config
 st.set_page_config(
-    page_title="Paper Explainer 📑",
+    page_title="Slide Sage: PDF to Video Explainer 📑",
     page_icon="📑",
     layout="wide",
 )
